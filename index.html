@@ -32,8 +32,6 @@
             border-radius: 12px;
             padding: 60px 40px;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-            position: relative;
-            z-index: 10;
         }
 
         .profile-section {
@@ -65,8 +63,6 @@
             margin-top: 8px;
             cursor: pointer;
             text-decoration: none;
-            border-radius: 30px;
-            overflow: hidden;
         }
 
         .course-tag {
@@ -74,142 +70,100 @@
             background: #1f6feb;
             color: #ffffff;
             padding: 12px 24px;
-            border-radius: 30px;
+            border-radius: 25px;
             font-size: 1em;
             font-weight: 500;
             position: relative;
-            z-index: 3;
+            z-index: 2;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 4px 15px rgba(31, 111, 235, 0.3);
         }
 
         .portal-button:hover .course-tag {
-            transform: scale(1.1);
+            transform: scale(1.05);
             box-shadow: 0 6px 25px rgba(31, 111, 235, 0.5);
-            background: rgba(47, 127, 245, 0.15);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 2px solid rgba(88, 166, 255, 0.3);
+            background: #2f7ff5;
         }
 
-        /* Preview shows through the frosted button */
+        /* Portal preview effect */
         .portal-preview {
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            width: 350px;
-            height: 220px;
-            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            transform: translate(-50%, -50%) scale(0.8);
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
             opacity: 0;
-            filter: blur(20px);
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            filter: blur(8px);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 1;
             pointer-events: none;
-            border-radius: 30px;
-            background-size: cover;
-            background-position: center;
+            border-radius: 25px;
         }
 
         .portal-button:hover .portal-preview {
-            opacity: 0.9;
-            filter: blur(8px);
-            width: 500px;
-            height: 320px;
+            opacity: 0.6;
+            filter: blur(6px);
+            transform: translate(-50%, -50%) scale(1);
         }
 
-        /* Full screen portal overlay */
-        .portal-fullscreen {
+        /* Zoom into portal effect - YOU move forward */
+        body.zooming {
+            perspective: 1000px;
+        }
+
+        .container.zooming {
+            animation: zoomIntoPortal 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes zoomIntoPortal {
+            0% {
+                transform: scale(1) translateZ(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(3) translateZ(500px);
+                opacity: 0;
+            }
+        }
+
+        /* Portal stays in place, grows slightly */
+        .portal-button.zooming .course-tag {
+            animation: portalStays 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            position: relative;
+            z-index: 10000;
+        }
+
+        @keyframes portalStays {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.2);
+            }
+            100% {
+                transform: scale(20);
+                opacity: 0;
+            }
+        }
+
+        /* Dark overlay fade in */
+        .portal-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 9999;
-            pointer-events: none;
-            display: none;
-        }
-
-        .portal-fullscreen.active {
-            display: block;
-        }
-
-        /* Blue expanding circle */
-        .blue-circle {
-            position: absolute;
             background: #1f6feb;
-            border-radius: 50%;
-            transform: scale(0);
-            transition: transform 1.2s cubic-bezier(0.6, 0, 0.2, 1);
-        }
-
-        .blue-circle.expanding {
-            transform: scale(100);
-        }
-
-        /* Page content that fades in */
-        .next-page-preview {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
             opacity: 0;
-            filter: blur(30px);
-            transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
-            transition-delay: 0.3s;
-            background: #0a0e27;
+            pointer-events: none;
+            z-index: 9999;
+            transition: opacity 0.6s ease;
         }
 
-        .next-page-preview.visible {
+        .portal-overlay.active {
             opacity: 1;
-            filter: blur(0px);
-        }
-
-        /* Zoom effect on container - engulfing acceleration */
-        body.zooming .container {
-            animation: engulfingZoom 1.2s cubic-bezier(0.6, 0.05, 0.28, 0.91) forwards;
-        }
-
-        @keyframes engulfingZoom {
-            0% {
-                transform: scale(1) translateZ(0);
-                opacity: 1;
-            }
-            30% {
-                transform: scale(1.05) translateZ(20px);
-                opacity: 0.9;
-            }
-            70% {
-                transform: scale(2.5) translateZ(400px);
-                opacity: 0.5;
-            }
-            100% {
-                transform: scale(15) translateZ(2000px);
-                opacity: 0;
-            }
-        }
-
-        /* Everything slides away as you zoom in */
-        body.zooming {
-            perspective: 1000px;
-        }
-
-        body.zooming .profile-img,
-        body.zooming h1,
-        body.zooming .intro {
-            animation: slideAway 1.2s cubic-bezier(0.6, 0.05, 0.28, 0.91) forwards;
-        }
-
-        @keyframes slideAway {
-            0% {
-                transform: translateZ(0) scale(1);
-                opacity: 1;
-            }
-            100% {
-                transform: translateZ(500px) scale(3);
-                opacity: 0;
-            }
         }
 
         .intro {
@@ -252,31 +206,18 @@
                 width: 150px;
                 height: 150px;
             }
-
-            .portal-preview {
-                width: 280px;
-                height: 180px;
-            }
-
-            .portal-button:hover .portal-preview {
-                width: 320px;
-                height: 200px;
-            }
         }
     </style>
 </head>
 <body>
-    <div class="portal-fullscreen" id="portalFullscreen">
-        <div class="blue-circle" id="blueCircle"></div>
-        <div class="next-page-preview" id="nextPagePreview"></div>
-    </div>
+    <div class="portal-overlay" id="portalOverlay"></div>
 
     <div class="container" id="mainContainer">
         <div class="profile-section">
             <img src="profile-pic.png" alt="Rajarshi Das profile photo" class="profile-img">
             <h1>Rajarshi Das</h1>
             <a href="mae4190/" class="portal-button" id="portalButton">
-                <div class="portal-preview" id="portalPreview"></div>
+                <div class="portal-preview"></div>
                 <span class="course-tag">MAE 4190: Fast Robots - Spring 2026</span>
             </a>
         </div>
@@ -284,12 +225,12 @@
         <div class="intro">
             <h2>About Me</h2>
             <p>
-                Hello! My name is Rajarshi, and I'm a senior studying Mechanical Engineering 
+                Hello! My name is Rajarshi, and I’m a senior studying Mechanical Engineering 
                 at Cornell University, currently enrolled in MAE 4190. My interests focus on 
                 embedded systems, robotics, simulation-based design, and hands-on engineering, 
-                with an emphasis on machining, prototyping, and building systems that last. 
-                Outside of class, I enjoy cycling, horse riding, playing pool, and working on 
-                personal hardware projects driven by curiosity. Feel free to 
+                with an emphasis on machining, prototyping, PCB design, and building systems 
+                that last. Outside of class, I enjoy cycling, horse riding, playing pool, and 
+                refining my FPV drone flying skills with a cinematic focus. Feel free to 
                 connect with me via email at <a href="mailto:rd496@cornell.edu">rd496@cornell.edu</a>.
             </p>
         </div>
@@ -297,55 +238,26 @@
 
     <script>
         const portalButton = document.getElementById('portalButton');
-        const portalFullscreen = document.getElementById('portalFullscreen');
-        const blueCircle = document.getElementById('blueCircle');
-        const nextPagePreview = document.getElementById('nextPagePreview');
+        const portalOverlay = document.getElementById('portalOverlay');
         const mainContainer = document.getElementById('mainContainer');
-        const portalPreview = document.getElementById('portalPreview');
-
-        // Set preview background with a more visible gradient
-        // This creates a visible preview effect even without a screenshot
-        portalPreview.style.background = 'radial-gradient(circle at 30% 50%, rgba(88, 166, 255, 0.3) 0%, rgba(10, 14, 39, 0.8) 50%, rgba(26, 31, 58, 0.9) 100%)';
-        
-        // When you have a screenshot, replace the line above with:
-        // portalPreview.style.backgroundImage = 'url("mae4190-preview.png")';
 
         portalButton.addEventListener('click', function(e) {
             e.preventDefault();
             
-            // Get button position for circle origin
-            const rect = portalButton.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-            
-            // Position blue circle at button center
-            blueCircle.style.left = centerX + 'px';
-            blueCircle.style.top = centerY + 'px';
-            blueCircle.style.width = '60px';
-            blueCircle.style.height = '60px';
-            blueCircle.style.marginLeft = '-30px';
-            blueCircle.style.marginTop = '-30px';
-            
-            // Activate portal fullscreen
-            portalFullscreen.classList.add('active');
-            
-            // Start engulfing zoom on container
+            // Add zooming class to trigger animations
             document.body.classList.add('zooming');
+            mainContainer.classList.add('zooming');
+            portalButton.classList.add('zooming');
             
-            // Small delay, then expand blue circle
+            // Fade in blue overlay
             setTimeout(() => {
-                blueCircle.classList.add('expanding');
-            }, 50);
+                portalOverlay.classList.add('active');
+            }, 300);
             
-            // Fade in next page preview as blue expands
-            setTimeout(() => {
-                nextPagePreview.classList.add('visible');
-            }, 400);
-            
-            // Navigate to page
+            // Navigate after animation completes
             setTimeout(() => {
                 window.location.href = 'mae4190/';
-            }, 1200);
+            }, 1000);
         });
     </script>
 </body>
