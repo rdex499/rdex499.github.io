@@ -84,19 +84,22 @@
         }
 
         .portal-button:hover .course-tag {
-            transform: scale(1.05);
+            transform: scale(1.1);
             box-shadow: 0 6px 25px rgba(31, 111, 235, 0.5);
-            background: #2f7ff5;
+            background: rgba(47, 127, 245, 0.15);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 2px solid rgba(88, 166, 255, 0.3);
         }
 
-        /* Frosted glass preview effect */
+        /* Preview shows through the frosted button */
         .portal-preview {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 400px;
-            height: 250px;
+            width: 350px;
+            height: 220px;
             background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
             opacity: 0;
             filter: blur(20px);
@@ -109,31 +112,10 @@
         }
 
         .portal-button:hover .portal-preview {
-            opacity: 0.4;
-            filter: blur(15px);
-            width: 450px;
-            height: 280px;
-        }
-
-        /* Frosted glass overlay on hover */
-        .frosted-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(31, 111, 235, 0.15);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            opacity: 0;
-            z-index: 2;
-            pointer-events: none;
-            border-radius: 30px;
-            transition: opacity 0.4s ease;
-        }
-
-        .portal-button:hover .frosted-overlay {
-            opacity: 1;
+            opacity: 0.9;
+            filter: blur(8px);
+            width: 500px;
+            height: 320px;
         }
 
         /* Full screen portal overlay */
@@ -200,10 +182,32 @@
             }
             70% {
                 transform: scale(2.5) translateZ(400px);
-                opacity: 0.3;
+                opacity: 0.5;
             }
             100% {
-                transform: scale(8) translateZ(1000px);
+                transform: scale(15) translateZ(2000px);
+                opacity: 0;
+            }
+        }
+
+        /* Everything slides away as you zoom in */
+        body.zooming {
+            perspective: 1000px;
+        }
+
+        body.zooming .profile-img,
+        body.zooming h1,
+        body.zooming .intro {
+            animation: slideAway 1.2s cubic-bezier(0.6, 0.05, 0.28, 0.91) forwards;
+        }
+
+        @keyframes slideAway {
+            0% {
+                transform: translateZ(0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translateZ(500px) scale(3);
                 opacity: 0;
             }
         }
@@ -273,7 +277,6 @@
             <h1>Rajarshi Das</h1>
             <a href="mae4190/" class="portal-button" id="portalButton">
                 <div class="portal-preview" id="portalPreview"></div>
-                <div class="frosted-overlay"></div>
                 <span class="course-tag">MAE 4190: Fast Robots - Spring 2026</span>
             </a>
         </div>
@@ -300,11 +303,11 @@
         const mainContainer = document.getElementById('mainContainer');
         const portalPreview = document.getElementById('portalPreview');
 
-        // Set preview background (you'll need to add a screenshot)
-        // For now, using a gradient placeholder
-        portalPreview.style.backgroundImage = 'linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%)';
+        // Set preview background with a more visible gradient
+        // This creates a visible preview effect even without a screenshot
+        portalPreview.style.background = 'radial-gradient(circle at 30% 50%, rgba(88, 166, 255, 0.3) 0%, rgba(10, 14, 39, 0.8) 50%, rgba(26, 31, 58, 0.9) 100%)';
         
-        // You can replace the above with an actual screenshot:
+        // When you have a screenshot, replace the line above with:
         // portalPreview.style.backgroundImage = 'url("mae4190-preview.png")';
 
         portalButton.addEventListener('click', function(e) {
