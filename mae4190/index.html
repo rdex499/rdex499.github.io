@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAE 4190: Fast Robots Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0a0e27;
+            color: #e0e6ed;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Animated background elements */
+        .floating-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .float-item {
+            position: absolute;
+            font-size: 3rem;
+            opacity: 0.15;
+            animation: float 20s infinite ease-in-out;
+        }
+
+        .float-item:nth-child(1) { left: 10%; top: 20%; animation-delay: 0s; animation-duration: 25s; }
+        .float-item:nth-child(2) { left: 80%; top: 40%; animation-delay: 3s; animation-duration: 22s; }
+        .float-item:nth-child(3) { left: 50%; top: 60%; animation-delay: 6s; animation-duration: 28s; }
+        .float-item:nth-child(4) { left: 20%; top: 70%; animation-delay: 2s; animation-duration: 24s; }
+        .float-item:nth-child(5) { left: 70%; top: 15%; animation-delay: 8s; animation-duration: 26s; }
+        .float-item:nth-child(6) { left: 40%; top: 85%; animation-delay: 4s; animation-duration: 23s; }
+        .float-item:nth-child(7) { left: 90%; top: 70%; animation-delay: 7s; animation-duration: 27s; }
+        .float-item:nth-child(8) { left: 15%; top: 45%; animation-delay: 5s; animation-duration: 21s; }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translate(0, 0) rotate(0deg);
+            }
+            25% {
+                transform: translate(30px, -30px) rotate(5deg);
+            }
+            50% {
+                transform: translate(-20px, 20px) rotate(-5deg);
+            }
+            75% {
+                transform: translate(40px, 10px) rotate(3deg);
+            }
+        }
+
+        /* Main container */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            color: #58a6ff;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(88, 166, 255, 0.5);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            color: #8b949e;
+        }
+
+        .back-home {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #58a6ff;
+            text-decoration: none;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .back-home:hover {
+            color: #79c0ff;
+            transform: translateX(-5px);
+        }
+
+        /* Quick Links */
+        .quick-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 60px;
+            flex-wrap: wrap;
+        }
+
+        .quick-link {
+            background: rgba(88, 166, 255, 0.1);
+            border: 2px solid #58a6ff;
+            padding: 12px 24px;
+            border-radius: 25px;
+            color: #58a6ff;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .quick-link:hover {
+            background: rgba(88, 166, 255, 0.2);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(88, 166, 255, 0.3);
+        }
+
+        /* Labs grid */
+        .labs-section h2 {
+            text-align: center;
+            font-size: 2rem;
+            color: #f0f6fc;
+            margin-bottom: 40px;
+        }
+
+        .labs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-bottom: 60px;
+        }
+
+        .lab-card {
+            background: linear-gradient(135deg, #161b33 0%, #1a1f3a 100%);
+            border: 2px solid #30363d;
+            border-radius: 16px;
+            padding: 30px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .lab-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(88, 166, 255, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .lab-card:hover::before {
+            opacity: 1;
+        }
+
+        .lab-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            border-color: #58a6ff;
+            box-shadow: 0 10px 30px rgba(88, 166, 255, 0.3);
+        }
+
+        .lab-card.active {
+            border-color: #3fb950;
+            background: linear-gradient(135deg, #1a2f1a 0%, #1f3a1f 100%);
+        }
+
+        .lab-card.active:hover {
+            border-color: #3fb950;
+            box-shadow: 0 10px 30px rgba(63, 185, 80, 0.3);
+        }
+
+        .lab-number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #30363d;
+            margin-bottom: 10px;
+        }
+
+        .lab-card.active .lab-number {
+            color: rgba(63, 185, 80, 0.3);
+        }
+
+        .lab-title {
+            font-size: 1.3rem;
+            color: #f0f6fc;
+            margin-bottom: 8px;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+
+        .lab-status {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+
+        .status-upcoming {
+            background: rgba(139, 148, 158, 0.2);
+            color: #8b949e;
+        }
+
+        .status-active {
+            background: rgba(63, 185, 80, 0.2);
+            color: #3fb950;
+        }
+
+        .lab-emoji {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 2.5rem;
+            opacity: 0.3;
+            transition: all 0.4s ease;
+        }
+
+        .lab-card:hover .lab-emoji {
+            opacity: 0.6;
+            transform: rotate(10deg) scale(1.1);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #8b949e;
+            border-top: 1px solid #30363d;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .labs-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .float-item {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Floating background elements -->
+    <div class="floating-bg">
+        <div class="float-item">🤖</div>
+        <div class="float-item">⚙️</div>
+        <div class="float-item">🔧</div>
+        <div class="float-item">💻</div>
+        <div class="float-item">🚀</div>
+        <div class="float-item">⚡</div>
+        <div class="float-item">🔩</div>
+        <div class="float-item">📡</div>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <a href="../" class="back-home">← Back to Home</a>
+            <h1>🤖 MAE 4190: Fast Robots</h1>
+            <p>Spring 2026 • Lab Dashboard</p>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="quick-links">
+            <a href="https://cei-lab.github.io/FastRobots-2024/" class="quick-link" target="_blank">Course Website</a>
+            <a href="#" class="quick-link">Resources</a>
+            <a href="#" class="quick-link">Schedule</a>
+        </div>
+
+        <!-- Labs Section -->
+        <div class="labs-section">
+            <h2>Laboratory Assignments</h2>
+            <div class="labs-grid">
+                <!-- Lab 1 - Active with link -->
+                <a href="lab1/" style="text-decoration: none; color: inherit;">
+                    <div class="lab-card active">
+                        <div class="lab-number">01</div>
+                        <div class="lab-title">The Artemis Board</div>
+                        <span class="lab-status status-active">In Progress</span>
+                        <div class="lab-emoji">🎯</div>
+                    </div>
+                </a>
+
+                <!-- Lab 2 -->
+                <div class="lab-card">
+                    <div class="lab-number">02</div>
+                    <div class="lab-title">Bluetooth Communication</div>
+                    <span class="lab-status status-upcoming">Coming Soon</span>
+                    <div class="lab-emoji">📡</div>
+                </div>
+
+                <!-- Lab 3 -->
+                <div class="lab-card">
+                    <div class="lab-number">03</div>
+                    <div class="lab-title">Time of Flight Sensors</div>
+                    <span class="lab-status status-upcoming">Coming Soon</span>
+                    <div class="lab-emoji">📏</div>
+                </div>
+
+                <!-- Lab 4 -->
+                <div class="lab-card">
+                    <div class="lab-number">04</div>
+                    <div class="lab-title">IMU Integration</div>
+                    <span class="lab-status status-upcoming">Coming Soon</span>
+                    <div class="lab-emoji">🧭</div>
+                </div>
+
+                <!-- Lab 5 -->
+                <div class="lab-card">
+                    <div class="lab-number">05</div>
+                    <div class="lab-title">Motor Drivers</div>
+                    <span class="lab-status status-upcoming">Coming Soon</span>
+                    <div class="lab-emoji">⚙️</div>
+                </div>
+
+                <!-- Lab 6 -->
+                <div class="lab-card">
+                    <div class="lab-number">06</div>
+                    <div class="lab-title">PID Control</div>
+                    <span class="lab-status status-upcoming">Coming Soon</span>
+                    <div class="lab-emoji">🎮</div>
+                </div>
+
+                <!-- Lab 7 -->
+                <div class="lab-card">
+                    <div class="lab-number">07</div>
+                    <div class="lab-title">Kalman Filter</div>
+                    <span class="lab-status status-upcoming">Coming Soon</span>
+                    <div class="lab-emoji">📊</div>
+                </div>
+
+                <!-- Lab 8 -->
+                <div class="lab-card">
+                    <div class="lab-number">08</div>
+                    <div class="lab-title">Stunts</div>
+                    <span class="lab-status status-upcoming">Coming Soon</span>
+                    <div class="lab-emoji">🎪</div>
+                </div>
+
+                <!-- Lab 9 -->
+                <div class="lab-card">
+                    <div class="lab-number">09</div>
+                    <div class="lab-title">Mapping</div>
+                    <span class="lab-status status-upcoming">Coming Soon</span>
+                    <div class="lab-emoji">🗺️</div>
+                </div>
+
+                <!-- Lab 10 -->
+                <div class="lab-card">
+                    <div class="lab-number">10</div>
+                    <div class="lab-title">Localization (Sim)</div>
+                    <span class="lab-status status-upcoming">Coming Soon</span>
+                    <div class="lab-emoji">📍</div>
+                </div>
+
+                <!-- Lab 11 -->
+                <div class="lab-card">
+                    <div class="lab-number">11</div>
+                    <div class="lab-title">Localization (Real)</div>
+                    <span class="lab-status status-upcoming">Coming Soon</span>
+                    <div class="lab-emoji">🎯</div>
+                </div>
+
+                <!-- Lab 12 -->
+                <div class="lab-card">
+                    <div class="lab-number">12</div>
+                    <div class="lab-title">Path Planning</div>
+                    <span class="lab-status status-upcoming">Coming Soon</span>
+                    <div class="lab-emoji">🚀</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Rajarshi Das • MAE 4190 • Spring 2026</p>
+            <p><a href="mailto:rd496@cornell.edu" style="color: #58a6ff; text-decoration: none;">rd496@cornell.edu</a></p>
+        </div>
+    </div>
+</body>
+</html>
