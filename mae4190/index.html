@@ -403,5 +403,21 @@
             <p><a href="mailto:rd496@cornell.edu" style="color: #58a6ff; text-decoration: none;">rd496@cornell.edu</a></p>
         </div>
     </div>
+    <script>
+    // Make quick-links open in pop-up windows
+    document.querySelectorAll('.quick-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            // Only pop-up for external links (not # links)
+            if (this.href && this.href !== '#' && !this.href.includes('#')) {
+                e.preventDefault();
+                window.open(
+                    this.href,
+                    'popup',
+                    'width=1000,height=800,scrollbars=yes,resizable=yes'
+                );
+            }
+        });
+    });
+    </script>
 </body>
 </html>
