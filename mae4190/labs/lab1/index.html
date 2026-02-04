@@ -36,10 +36,15 @@
                         <li><a href="#1a-objective">Objective</a></li>
                         <li><a href="#1a-prelab">Prelab</a></li>
                         <li><a href="#1a-setup">Setup</a></li>
-                        <li><a href="#1a-task1">Task 1: Blink</a></li>
-                        <li><a href="#1a-task2">Task 2: Serial</a></li>
-                        <li><a href="#1a-task3">Task 3: Temperature</a></li>
-                        <li><a href="#1a-task4">Task 4: Microphone</a></li>
+                        <li>
+                            <a href="#1a-tasks" style="font-weight: 500;">Tasks</a>
+                            <ul style="margin-left: 12px; margin-top: 4px;">
+                                <li><a href="#1a-task1">Task 1: Blink</a></li>
+                                <li><a href="#1a-task2">Task 2: Serial</a></li>
+                                <li><a href="#1a-task3">Task 3: Temperature</a></li>
+                                <li><a href="#1a-task4">Task 4: Microphone</a></li>
+                            </ul>
+                        </li>
                     </ul>
                 </li>
                 <li style="margin-top: 12px;">
@@ -48,7 +53,19 @@
                         <li><a href="#1b-objective">Objective</a></li>
                         <li><a href="#1b-config">Configurations</a></li>
                         <li><a href="#1b-codebase">Codebase</a></li>
-                        <li><a href="#1b-tasks">Tasks</a></li>
+                        <li>
+                            <a href="#1b-tasks" style="font-weight: 500;">Tasks</a>
+                            <ul style="margin-left: 12px; margin-top: 4px;">
+                                <li><a href="#1b-task1">Task 1: ECHO</a></li>
+                                <li><a href="#1b-task2">Task 2: THREE_FLOATS</a></li>
+                                <li><a href="#1b-task3">Task 3: TIME_MILLIS</a></li>
+                                <li><a href="#1b-task4">Task 4: Handler</a></li>
+                                <li><a href="#1b-task5">Task 5: Transfer Rate</a></li>
+                                <li><a href="#1b-task6">Task 6: Array Storage</a></li>
+                                <li><a href="#1b-task7">Task 7: Temperature</a></li>
+                                <li><a href="#1b-task8">Task 8: Discussion</a></li>
+                            </ul>
+                        </li>
                     </ul>
                 </li>
             </ul>
@@ -252,7 +269,7 @@ characteristics:
                 system. The following tasks ensure that we can receive timestamped messages from the Artemis board.
             </p>
 
-            <h3>Task 1: ECHO Command</h3>
+            <h3 id="1b-task1">Task 1: ECHO Command</h3>
             <p>
                 Send a string value from the computer to the Artemis board using the ECHO command. The computer should 
                 then receive and print an augmented string.
@@ -270,7 +287,7 @@ characteristics:
                 <strong>Result:</strong> ECHO command working! Artemis receives string and sends back augmented version.
             </div>
 
-            <h3>Task 2: SEND_THREE_FLOATS</h3>
+            <h3 id="1b-task2">Task 2: SEND_THREE_FLOATS</h3>
             <p>
                 Send three floats to the Artemis board using the SEND_THREE_FLOATS command and extract the three float 
                 values in the Arduino sketch.
@@ -286,7 +303,7 @@ characteristics:
                 <strong>Result:</strong> Successfully sent and extracted three float values!
             </div>
 
-            <h3>Task 3: GET_TIME_MILLIS</h3>
+            <h3 id="1b-task3">Task 3: GET_TIME_MILLIS</h3>
             <p>
                 Add a command GET_TIME_MILLIS which makes the robot reply with a string such as "T:123456" to the 
                 string characteristic.
@@ -302,7 +319,7 @@ characteristics:
                 <strong>Result:</strong> Successfully implemented GET_TIME_MILLIS command and received timestamp!
             </div>
 
-            <h3>Task 4: Notification Handler</h3>
+            <h3 id="1b-task4">Task 4: Notification Handler</h3>
             <p>
                 Setup a notification handler in Python to receive the string value (the BLEStringCharacteristic in Arduino) 
                 from the Artemis board. In the callback function, extract the time from the string.
@@ -318,7 +335,7 @@ characteristics:
                 <strong>Result:</strong> Notification handler successfully extracts runtime from string (275972 ms)!
             </div>
 
-            <h3>Task 5: Data Transfer Rate</h3>
+            <h3 id="1b-task5">Task 5: Data Transfer Rate</h3>
             <p>
                 Write a loop that gets the current time in milliseconds and sends it to your laptop to be received and 
                 processed by the notification handler. Collect these values for a few seconds and use the time stamps 
@@ -361,7 +378,7 @@ ble.stop_notify(ble.uuid['RX_STRING'])</code></pre>
                 <strong>Result:</strong> Average time between messages: ~60.89 ms. Effective data transfer rate achieved!
             </div>
 
-            <h3>Task 6: Array Storage</h3>
+            <h3 id="1b-task6">Task 6: Array Storage</h3>
             <p>
                 Create an array that can store time stamps. This array should be defined globally so that other functions 
                 can access it if need be. In the loop, rather than send each time stamp, place each time stamp into the 
@@ -437,7 +454,7 @@ Total received: 100</code></pre>
                 <strong>Result:</strong> Successfully stored 100 timestamps in array and sent all data in batch!
             </div>
 
-            <h3>Task 7: Temperature Array</h3>
+            <h3 id="1b-task7">Task 7: Temperature Array</h3>
             <p>
                 Add a second array that is the same size as the time stamp array. Use this array to store temperature 
                 readings. Each element in both arrays should correspond (i.e., the first time stamp was recorded at the 
@@ -525,7 +542,7 @@ Total received: 100</code></pre>
                 <strong>Result:</strong> Successfully stored and sent 100 paired timestamp/temperature readings!
             </div>
 
-            <h3>Task 8: Discussion</h3>
+            <h3 id="1b-task8">Task 8: Discussion</h3>
             <p>
                 Discuss the differences between these two methods (streaming vs. batching), the advantages and disadvantages 
                 of both and the potential scenarios that you might choose one method over the other.
@@ -553,8 +570,7 @@ Total received: 100</code></pre>
             </p>
 
             <div class="callout">
-                <strong>Key Takeaway:</strong> Use Method 1 for real-time monitoring and Method 2 for high-speed data logging 
-                with post-processing.
+                <strong>Takeaway:</strong> Use Method 1 for real-time monitoring and Method 2 for high-speed blackbox data logging for debugging.
             </div>
 
         </main>
