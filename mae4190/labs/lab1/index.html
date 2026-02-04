@@ -30,18 +30,26 @@
         <aside class="toc">
             <h2>Contents</h2>
             <ul>
-                <li><a href="#lab1a">Lab 1A: Setup</a></li>
-                <li><a href="#1a-objective">Objective</a></li>
-                <li><a href="#1a-prelab">Prelab</a></li>
-                <li><a href="#1a-setup">Setup</a></li>
-                <li><a href="#1a-task1">Task 1: Blink</a></li>
-                <li><a href="#1a-task2">Task 2: Serial</a></li>
-                <li><a href="#1a-task3">Task 3: Temperature</a></li>
-                <li><a href="#1a-task4">Task 4: Microphone</a></li>
-                <li><a href="#lab1b">Lab 1B: Bluetooth</a></li>
-                <li><a href="#1b-objective">Objective</a></li>
-                <li><a href="#1b-prelab">Prelab</a></li>
-                <li><a href="#1b-tasks">Tasks</a></li>
+                <li style="margin-bottom: 12px;">
+                    <a href="#lab1a" style="font-weight: 600; color: #58a6ff;">Lab 1A: Serial</a>
+                    <ul style="margin-left: 12px; margin-top: 8px;">
+                        <li><a href="#1a-objective">Objective</a></li>
+                        <li><a href="#1a-prelab">Prelab</a></li>
+                        <li><a href="#1a-setup">Setup</a></li>
+                        <li><a href="#1a-task1">Task 1: Blink</a></li>
+                        <li><a href="#1a-task2">Task 2: Serial</a></li>
+                        <li><a href="#1a-task3">Task 3: Temperature</a></li>
+                        <li><a href="#1a-task4">Task 4: Microphone</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top: 12px;">
+                    <a href="#lab1b" style="font-weight: 600; color: #58a6ff;">Lab 1B: Bluetooth</a>
+                    <ul style="margin-left: 12px; margin-top: 8px;">
+                        <li><a href="#1b-objective">Objective</a></li>
+                        <li><a href="#1b-prelab">Prelab</a></li>
+                        <li><a href="#1b-tasks">Tasks</a></li>
+                    </ul>
+                </li>
             </ul>
         </aside>
 
@@ -53,7 +61,7 @@
             <h2 id="1a-objective">Objective</h2>
             <p>
                 The purpose of Lab 1A is to setup and become familiar with the Arduino IDE and the Artemis board. 
-                After this lab, I should be comfortable programming the board, using the board LED, reading/writing 
+                After this lab, we should be comfortable programming the board, using the board LED, reading/writing 
                 serial messages over USB, and using the onboard temperature sensor and Pulse Density Microphone.
             </p>
 
@@ -71,7 +79,7 @@
 
             <h3>Board Information</h3>
             <p>
-                The <strong>SparkFun RedBoard Artemis Nano</strong> is a powerful development board featuring:
+                The <strong>SparkFun RedBoard Artemis Nano</strong> is a development board featuring:
             </p>
             <ul>
                 <li>Apollo3 Blue microcontroller</li>
@@ -87,7 +95,7 @@
             </p>
             <ul>
                 <li><strong>Board:</strong> SparkFun RedBoard Artemis Nano</li>
-                <li><strong>Port:</strong> [Your port here]</li>
+                <li><strong>Port:</strong> /dev/cu.usberial-10</li>
             </ul>
 
             <div class="callout warning">
@@ -110,9 +118,9 @@
 
 void loop() {
   digitalWrite(LED_BUILTIN, HIGH);
-  delay(100);  // Reduced delay for faster blinking
+  delay(200);  // Reduced delay for faster blinking
   digitalWrite(LED_BUILTIN, LOW);
-  delay(100);
+  delay(200);
 }</code></pre>
 
             <h3>Demo</h3>
@@ -126,26 +134,11 @@ void loop() {
 
             <h2 id="1a-task2">Task 2: Serial Monitor Test</h2>
             <p>
-                Tested serial communication using <code>File → Examples → Apollo3 → Example4_Serial</code>.
+                Tested serial communication using <code>File → Examples → Apollo3 → Example04_Serial</code>.
             </p>
 
-            <h3>Code Snippet</h3>
-            <pre><code class="language-cpp">void setup() {
-  Serial.begin(115200);
-  Serial.println("Artemis Serial Test");
-  Serial.println("Enter text to echo back:");
-}
-
-void loop() {
-  if (Serial.available()) {
-    char c = Serial.read();
-    Serial.print("Received: ");
-    Serial.println(c);
-  }
-}</code></pre>
-
             <h3>Demo</h3>
-            <p>Spamming the serial monitor to test bidirectional communication at 115200 baud:</p>
+            <p>Testing the serial monitor to test bidirectional communication at 115200 baud:</p>
             <video controls style="max-width: 100%; border-radius: 8px; margin: 24px 0;">
                 <source src="videos/task2-serial.mp4" type="video/mp4">
             </video>
@@ -156,7 +149,7 @@ void loop() {
 
             <h2 id="1a-task3">Task 3: Temperature Sensor Test</h2>
             <p>
-                Tested the onboard temperature sensor using <code>File → Examples → Apollo3 → Example2_analogRead</code>.
+                Tested the onboard temperature sensor using <code>File → Examples → Apollo3 → Example02_analogRead</code>.
             </p>
 
             <h3>Demo</h3>
