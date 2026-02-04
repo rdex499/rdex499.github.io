@@ -106,23 +106,10 @@ body {
     position: relative;
 }
 
-.toc a::before {
-    content: '→';
-    position: absolute;
-    left: -8px;
-    opacity: 0;
-    transition: all 0.3s ease;
-}
-
 .toc a:hover {
     color: #58a6ff;
     background: rgba(88, 166, 255, 0.15);
     transform: translateX(8px);
-}
-
-.toc a:hover::before {
-    opacity: 1;
-    left: -4px;
 }
 
 .toc a.active {

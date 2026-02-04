@@ -31,7 +31,7 @@
             <h2>Contents</h2>
             <ul>
                 <li style="margin-bottom: 12px;">
-                    <a href="#lab1a" style="font-weight: 600; color: #58a6ff;">Lab 1A: Serial</a>
+                    <a href="#lab1a" style="font-weight: 600; color: #58a6ff;">Lab 1A: Setup</a>
                     <ul style="margin-left: 12px; margin-top: 8px;">
                         <li><a href="#1a-objective">Objective</a></li>
                         <li><a href="#1a-prelab">Prelab</a></li>
@@ -47,6 +47,8 @@
                     <ul style="margin-left: 12px; margin-top: 8px;">
                         <li><a href="#1b-objective">Objective</a></li>
                         <li><a href="#1b-prelab">Prelab</a></li>
+                        <li><a href="#1b-config">Configurations</a></li>
+                        <li><a href="#1b-codebase">Codebase</a></li>
                         <li><a href="#1b-tasks">Tasks</a></li>
                     </ul>
                 </li>
@@ -190,24 +192,180 @@ void loop() {
 
             <h2 id="1b-prelab">Prelab</h2>
             
-            <h3>Codebase Setup</h3>
+            <h3>Overview</h3>
             <p>
-                [Add your explanation of the codebase and how Bluetooth works between computer and Artemis]
+                Lab 1B involves setting up Bluetooth Low Energy (BLE) communication between a Python/Jupyter 
+                environment on my computer and the Artemis board.
             </p>
 
-            <h3>Understanding Bluetooth Communication</h3>
+            <h2 id="1b-config">Configurations</h2>
+            
+            <div class="callout">
+                <strong>Note:</strong> The Artemis address had to be temporarily changed when, in lab, a different 
+                board was used. Baud rate was set to 115200.
+            </div>
+
+            <h3>Python: connections.yaml</h3>
+            <pre><code class="language-yaml"># connections.yaml
+artemis_address: 'c0:81:a4:24:29:64'
+ble_service: 'c041e110-cafe-cafe-cafe-c0ffeec0ffee'
+characteristics:
+  TX_CMD_STRING: '9750f60b-9c9c-4158-b620-02ec9521cd99'
+  RX_FLOAT: '27616294-3063-4ecc-b60b-3470ddef2938'
+  RX_STRING: 'f235a225-6735-4d73-94cb-ee5dfce9ba83'</code></pre>
+
+            <h3>Arduino IDE: ble_arduino.ino</h3>
+            <pre><code class="language-cpp">// BLE Service UUID - must match connections.yaml
+#define BLE_UUID_TEST_SERVICE "c041e110-cafe-cafe-cafe-c0ffeec0ffee"
+
+// Characteristic UUIDs
+#define BLE_UUID_RX_STRING "f235a225-6735-4d73-94cb-ee5dfce9ba83"
+#define BLE_UUID_TX_CMD_STRING "9750f60b-9c9c-4158-b620-02ec9521cd99"
+#define BLE_UUID_RX_FLOAT "27616294-3063-4ecc-b60b-3470ddef2938"</code></pre>
+
+            <h3>Successful Connection</h3>
+            <p>Computer side - Python successfully connects to Artemis:</p>
+            <img src="images/ble-connection-success.png" alt="Successful BLE Connection from Computer" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <p>Artemis side - Serial monitor shows connection established:</p>
+            <pre><code class="language-plaintext">12:16:15.840 -> Advertising BLE with MAC: c0:81:75:25:a:64
+12:16:27.334 -> Connected to: 6c:7e:67:bd:52:58</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> BLE connection established successfully on both sides!
+            </div>
+
+            <h2 id="1b-codebase">Codebase: BLE Architecture</h2>
+            
+            <h3>UUID Selection</h3>
             <p>
-                [Explain your understanding of the Bluetooth protocol and communication flow]
+                The BLE service UUID is the ID that the Artemis board advertises. As long as it follows the UUID format 
+                (8-4-4-4-12 hex digits) and is unique, it can be anything. I tested this by creating a custom UUID 
+                (<code>c041e110-cafe-cafe-cafe-c0ffeec0ffee</code>) and confirmed it worked after updating both the 
+                Arduino sketch and Python config with matching UUIDs.
+            </p>
+
+            <h3>Communication Flow</h3>
+            <p>
+                The Artemis (peripheral) advertises a BLE service with multiple characteristics. The laptop (central) 
+                connects by searching for the UUID, writes commands to a string characteristic, and subscribes to 
+                notify-enabled characteristics for replies. Commands are encoded as strings with a numeric type and 
+                optional values. The Artemis tokenizes these, processes them, and sends back strings or floats 
+                asynchronously via notify.
             </p>
 
             <h2 id="1b-tasks">Tasks</h2>
             
-            <h3>Task 1: [Task Name]</h3>
             <p>
-                [Add your Lab 1B task content here]
+                In order to test the robot's sensors more effectively, it is critical to have a working wireless debugging 
+                system. The following tasks ensure that we can receive timestamped messages from the Artemis board.
             </p>
 
-            <!-- Add more Lab 1B tasks as needed -->
+            <h3>Task 1: ECHO Command</h3>
+            <p>
+                Send a string value from the computer to the Artemis board using the ECHO command. The computer should 
+                then receive and print an augmented string.
+            </p>
+
+            <h4>Python Code and Output</h4>
+            <img src="images/task1-python-echo.png" alt="Task 1 Python ECHO command and output" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:16:15.840 -> Advertising BLE with MAC: c0:81:75:25:a:64
+12:16:27.334 -> Connected to: 6c:7e:67:bd:52:58
+12:24:04.114 -> Sent back: Robot says -> Wakey wakey, it's time for school!</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> ECHO command working! Artemis receives string and sends back augmented version.
+            </div>
+
+            <h3>Task 2: SEND_THREE_FLOATS</h3>
+            <p>
+                Send three floats to the Artemis board using the SEND_THREE_FLOATS command and extract the three float 
+                values in the Arduino sketch.
+            </p>
+
+            <h4>Python Code</h4>
+            <img src="images/task2-python-floats.png" alt="Task 2 Python SEND_THREE_FLOATS command" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:40:16.041 -> Three Floats: 1.00, 2.00, 3.00</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Successfully sent and extracted three float values!
+            </div>
+
+            <h3>Task 3: GET_TIME_MILLIS</h3>
+            <p>
+                Add a command GET_TIME_MILLIS which makes the robot reply with a string such as "T:123456" to the 
+                string characteristic.
+            </p>
+
+            <h4>Python Code and Output</h4>
+            <img src="images/task3-python-time.png" alt="Task 3 Python GET_TIME_MILLIS command" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:41:10.062 -> Sent back: T:193600</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Successfully implemented GET_TIME_MILLIS command and received timestamp!
+            </div>
+
+            <h3>Task 4: Notification Handler</h3>
+            <p>
+                Setup a notification handler in Python to receive the string value (the BLEStringCharacteristic in Arduino) 
+                from the Artemis board. In the callback function, extract the time from the string.
+            </p>
+
+            <h4>Python Code and Output</h4>
+            <img src="images/task4-python-handler.png" alt="Task 4 Python notification handler" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:42:32.490 -> Sent back: T:275972</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Notification handler successfully extracts runtime from string (275972 ms)!
+            </div>
+
+            <h3>Task 5: Data Transfer Rate</h3>
+            <p>
+                Write a loop that gets the current time in milliseconds and sends it to your laptop to be received and 
+                processed by the notification handler. Collect these values for a few seconds and use the time stamps 
+                to determine how fast messages can be sent.
+            </p>
+            <p>
+                <strong>Question:</strong> What is the effective data transfer rate of this method?
+            </p>
+
+            <h3>Task 6: Array Storage</h3>
+            <p>
+                Create an array that can store time stamps. This array should be defined globally so that other functions 
+                can access it if need be. In the loop, rather than send each time stamp, place each time stamp into the 
+                array. Add a command SEND_TIME_DATA which loops the array and sends each data point as a string to your 
+                laptop to be processed.
+            </p>
+
+            <h3>Task 7: Temperature Array</h3>
+            <p>
+                Add a second array that is the same size as the time stamp array. Use this array to store temperature 
+                readings. Each element in both arrays should correspond (i.e., the first time stamp was recorded at the 
+                same time as the first temperature reading). Add a command GET_TEMP_READINGS that loops through both 
+                arrays concurrently and sends each temperature reading with a time stamp.
+            </p>
+
+            <h3>Task 8: Discussion</h3>
+            <p>
+                Discuss the differences between these two methods (streaming vs. batching), the advantages and disadvantages 
+                of both and the potential scenarios that you might choose one method over the other.
+            </p>
+            <p>
+                <strong>Questions:</strong>
+            </p>
+            <ul>
+                <li>How "quickly" can the second method record data?</li>
+                <li>The Artemis board has 384 kB of RAM. Approximately how much data can you store to send without 
+                    running out of memory?</li>
+            </ul>
 
         </main>
     </div>
