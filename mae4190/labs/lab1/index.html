@@ -46,7 +46,6 @@
                     <a href="#lab1b" style="font-weight: 600; color: #58a6ff;">Lab 1B: Bluetooth</a>
                     <ul style="margin-left: 12px; margin-top: 8px;">
                         <li><a href="#1b-objective">Objective</a></li>
-                        <li><a href="#1b-prelab">Prelab</a></li>
                         <li><a href="#1b-config">Configurations</a></li>
                         <li><a href="#1b-codebase">Codebase</a></li>
                         <li><a href="#1b-tasks">Tasks</a></li>
@@ -190,14 +189,6 @@ void loop() {
                 for sending data from the Artemis to the computer via Bluetooth that will be useful in future labs.
             </p>
 
-            <h2 id="1b-prelab">Prelab</h2>
-            
-            <h3>Overview</h3>
-            <p>
-                Lab 1B involves setting up Bluetooth Low Energy (BLE) communication between a Python/Jupyter 
-                environment on my computer and the Artemis board.
-            </p>
-
             <h2 id="1b-config">Configurations</h2>
             
             <div class="callout">
@@ -333,9 +324,42 @@ characteristics:
                 processed by the notification handler. Collect these values for a few seconds and use the time stamps 
                 to determine how fast messages can be sent.
             </p>
-            <p>
-                <strong>Question:</strong> What is the effective data transfer rate of this method?
-            </p>
+
+            <h4>Python Handler Code</h4>
+            <pre><code class="language-python">timestamps = []
+
+def handler_task5(uuid, bytearray):
+    indexT = bytearray.find(b"T:")
+    runtime = int(bytearray[indexT+2:])
+    timestamps.append(runtime)
+
+ble.start_notify(ble.uuid['RX_STRING'], handler_task5)
+
+repeat = 10
+for i in range(repeat):
+    ble.send_command(CMD.GET_TIME_MILLIS, "")
+
+time.sleep(.2)
+ble.stop_notify(ble.uuid['RX_STRING'])</code></pre>
+
+            <h4>Data Transfer Rate Analysis</h4>
+            <img src="images/task5-transfer-rate.png" alt="Task 5 data transfer rate calculation" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:54:43.830 -> Sent back: T:31654
+12:54:43.863 -> Sent back: T:31716
+12:54:43.928 -> Sent back: T:31778
+12:54:43.994 -> Sent back: T:31840
+12:54:44.061 -> Sent back: T:31902
+12:54:44.125 -> Sent back: T:31954
+12:54:44.190 -> Sent back: T:32016
+12:54:44.256 -> Sent back: T:32078
+12:54:44.288 -> Sent back: T:32140
+12:54:44.354 -> Sent back: T:32202</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Average time between messages: ~60.89 ms. Effective data transfer rate achieved!
+            </div>
 
             <h3>Task 6: Array Storage</h3>
             <p>
@@ -345,6 +369,74 @@ characteristics:
                 laptop to be processed.
             </p>
 
+            <p>
+                The time array is defined globally with a maximum size of 100 elements. As timestamps are collected, 
+                they're stored in the array using a circular buffer approach. When the array is full, the 
+                SEND_TIME_DATA command sends all stored timestamps in chronological order.
+            </p>
+
+            <h4>Python Handler Code</h4>
+            <pre><code class="language-python">def handler_task6(uuid, bytearray):
+    data_str = ble.bytearray_to_string(bytearray)
+    timestamp = int(data_str)
+    timestamps.append(timestamp)
+    print(f"Timestamp: {timestamp}")
+
+#------------------------------------------------------
+
+timestamps = []
+
+ble.start_notify(ble.uuid['RX_STRING'], handler_task6)
+
+ble.send_command(CMD.SEND_TIME_DATA, "")
+
+time.sleep(2)  # Wait for 100 data points (reduction not recommended)
+ble.stop_notify(ble.uuid['RX_STRING'])
+
+print(f"\nTotal received: {len(timestamps)}")</code></pre>
+
+            <h4>Arduino Code (SEND_TIME_DATA)</h4>
+            <pre><code class="language-cpp">case SEND_TIME_DATA:
+    {
+        int current_pos = array_index % MAX_ARRAY_SIZE;        
+
+        // Send the "old" part | from current position to end of array
+        for (int i = current_pos; i < MAX_ARRAY_SIZE; i++) {
+            tx_estring_value.clear();
+            tx_estring_value.append(time_array[i]);
+            tx_characteristic_string.writeValue(tx_estring_value.c_str());
+        }
+
+        // Send the "new" part | from start of array to current position
+        for (int i = 0; i < current_pos; i++) {
+            tx_estring_value.clear();
+            tx_estring_value.append(time_array[i]);
+            tx_characteristic_string.writeValue(tx_estring_value.c_str());
+        }
+
+        Serial.print("Time data transfer finished | ");
+        Serial.print(MAX_ARRAY_SIZE);
+        Serial.println(" data points");
+        break;
+    }</code></pre>
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:58:22.458 -> Time data transfer finished | 100 data points</code></pre>
+
+            <h4>Python Output</h4>
+            <pre><code class="language-plaintext">Timestamp: 693733
+Timestamp: 693743
+Timestamp: 693753
+...
+Timestamp: 694713
+Timestamp: 694723
+
+Total received: 100</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Successfully stored 100 timestamps in array and sent all data in batch!
+            </div>
+
             <h3>Task 7: Temperature Array</h3>
             <p>
                 Add a second array that is the same size as the time stamp array. Use this array to store temperature 
@@ -353,19 +445,117 @@ characteristics:
                 arrays concurrently and sends each temperature reading with a time stamp.
             </p>
 
+            <h4>Python Handler Code</h4>
+            <pre><code class="language-python">timeKey = "T:"
+tempKey = "|TEMP:"
+timestamps, temperatures = [], []
+
+#------------------------------------------------------
+
+def handler_task7(uuid, bytearray):
+
+    timeIndex = bytearray.find(timeKey.encode('utf-8'))
+    tempIndex = bytearray.find(tempKey.encode('utf-8'))
+
+    currentTime = int(bytearray[timeIndex+2:tempIndex])
+    currentTemp = float(bytearray[tempIndex+6:])
+
+    timestamps.append(currentTime)
+    temperatures.append(currentTemp)
+
+    print(f"Timestamp {len(timestamps)}: {currentTime} | Temperature: {currentTemp}")
+
+#------------------------------------------------------
+# ble.connect()
+
+ble.start_notify(ble.uuid['RX_STRING'], handler_task7)
+
+ble.send_command(CMD.GET_TEMP_READINGS, "")
+
+time.sleep(2) # Wait for 100 data points (reduction not recommended)
+ble.stop_notify(ble.uuid['RX_STRING'])
+
+print(f"\nTotal received: {len(timestamps)}")</code></pre>
+
+            <h4>Arduino Code (GET_TEMP_READINGS)</h4>
+            <pre><code class="language-cpp">case GET_TEMP_READINGS:
+    {    
+        int current_pos = array_index % MAX_ARRAY_SIZE;        
+
+        // Send the "old" part | from current position to end of array
+        for (int i = current_pos; i < MAX_ARRAY_SIZE; i++) {
+            tx_estring_value.clear();
+            tx_estring_value.append("T:");
+            tx_estring_value.append(time_array[i]);
+            tx_estring_value.append("|TEMP:");
+            tx_estring_value.append(temp_array[i]);
+            tx_characteristic_string.writeValue(tx_estring_value.c_str());
+        }
+
+        // Send the "new" part | from start of array to current position
+        for (int i = 0; i < current_pos; i++) {
+            tx_estring_value.clear();
+            tx_estring_value.append("T:");
+            tx_estring_value.append(time_array[i]);
+            tx_estring_value.append("|TEMP:");
+            tx_estring_value.append(temp_array[i]);
+            tx_characteristic_string.writeValue(tx_estring_value.c_str());
+        }
+
+        Serial.print("Temp data transfer finished | ");
+        Serial.print(MAX_ARRAY_SIZE);
+        Serial.println(" data points");
+        break;
+    }</code></pre>
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">13:05:48.949 -> Time data transfer finished | 100 data points</code></pre>
+
+            <h4>Python Output</h4>
+            <pre><code class="language-plaintext">Timestamp 1: 678764 | Temperature: 78.28
+Timestamp 2: 678774 | Temperature: 78.28
+Timestamp 3: 678784 | Temperature: 79.302
+...
+Timestamp 99: 679744 | Temperature: 78.28
+Timestamp 100: 679754 | Temperature: 78.28
+
+Total received: 100</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Successfully stored and sent 100 paired timestamp/temperature readings!
+            </div>
+
             <h3>Task 8: Discussion</h3>
             <p>
                 Discuss the differences between these two methods (streaming vs. batching), the advantages and disadvantages 
                 of both and the potential scenarios that you might choose one method over the other.
             </p>
+
+            <h4>Method 1: Live Streaming (Task 5)</h4>
             <p>
-                <strong>Questions:</strong>
+                Send data live. Python requests current timestamp individually and the microcontroller responds. Real time 
+                data with no memory constraints.
             </p>
-            <ul>
-                <li>How "quickly" can the second method record data?</li>
-                <li>The Artemis board has 384 kB of RAM. Approximately how much data can you store to send without 
-                    running out of memory?</li>
-            </ul>
+            <p>
+                <strong>Tradeoff:</strong> Sampling rate is limited due to BLE (Bluetooth) round trip delays (60ms latency 
+                avg ~ 16.7Hz sampling rate)
+            </p>
+
+            <h4>Method 2: Batch Recording (Tasks 6-7)</h4>
+            <p>
+                Uses the microcontroller as a blackbox: continuously logs data on-board at very high speeds (up to 1000Hz), 
+                and then sends a large data packet when requested. This results in less BLE overhead and higher data rates.
+            </p>
+            <p>
+                <strong>Tradeoff:</strong> Limited RAM: with 362 kB available (after 31 kB used by global variables according 
+                to Arduino IDE post flashing the board), you can store roughly 45,000 timestamp-temperature pairs (4 bytes + 
+                4 bytes each). At 100 Hz sampling, this gives ~7.5 minutes of recording before running out of memory.
+            </p>
+
+            <div class="callout">
+                <strong>Key Takeaway:</strong> Use Method 1 for real-time monitoring and Method 2 for high-speed data logging 
+                with post-processing.
+            </div>
 
         </main>
     </div>
