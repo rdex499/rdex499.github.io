@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lab 1: The Artemis Board - MAE 4190</title>
+    <title>Lab 1: Artemis Board & Bluetooth - MAE 4190</title>
     
     <!-- Shared lab styles -->
     <link rel="stylesheet" href="../styles/lab-style.css">
@@ -18,7 +18,7 @@
         <div class="header-content">
             <a href="../../" class="back-link">← Back to Dashboard</a>
             <div>
-                <h1>Lab 1: The Artemis Board</h1>
+                <h1>Lab 1: Artemis Board & Bluetooth 🏹</h1>
                 <p class="lab-meta">MAE 4190 • Spring 2026 • Rajarshi Das</p>
             </div>
         </div>
@@ -30,77 +30,110 @@
         <aside class="toc">
             <h2>Contents</h2>
             <ul>
-                <li><a href="#objective">Objective</a></li>
-                <li><a href="#setup">Setup</a></li>
-                <li><a href="#task1">Task 1: Blink</a></li>
-                <li><a href="#task2">Task 2: Serial</a></li>
-                <li><a href="#results">Results</a></li>
-                <li><a href="#challenges">Challenges</a></li>
-                <li><a href="#conclusion">Conclusion</a></li>
+                <li><a href="#lab1a">Lab 1A: Setup</a></li>
+                <li><a href="#1a-objective">Objective</a></li>
+                <li><a href="#1a-prelab">Prelab</a></li>
+                <li><a href="#1a-setup">Setup</a></li>
+                <li><a href="#1a-task1">Task 1: Blink</a></li>
+                <li><a href="#1a-task2">Task 2: Serial</a></li>
+                <li><a href="#1a-task3">Task 3: Temperature</a></li>
+                <li><a href="#1a-task4">Task 4: Microphone</a></li>
+                <li><a href="#lab1b">Lab 1B: Bluetooth</a></li>
+                <li><a href="#1b-objective">Objective</a></li>
+                <li><a href="#1b-prelab">Prelab</a></li>
+                <li><a href="#1b-tasks">Tasks</a></li>
             </ul>
         </aside>
 
         <!-- Main content -->
         <main class="content">
-            <h2 id="objective">Objective</h2>
+            <!-- ==================== LAB 1A ==================== -->
+            <h2 id="lab1a" style="font-size: 2.5rem; color: #58a6ff; margin-bottom: 30px;">Lab 1A: Artemis Board Setup</h2>
+
+            <h2 id="1a-objective">Objective</h2>
             <p>
-                The goal of this lab is to familiarize ourselves with the Artemis board and set up 
-                the development environment. We'll test basic functionality including the onboard LED, 
-                serial communication, and sensor readings.
+                The purpose of Lab 1A is to setup and become familiar with the Arduino IDE and the Artemis board. 
+                After this lab, I should be comfortable programming the board, using the board LED, reading/writing 
+                serial messages over USB, and using the onboard temperature sensor and Pulse Density Microphone.
+            </p>
+
+            <h2 id="1a-prelab">Prelab</h2>
+            
+            <h3>Arduino IDE Installation</h3>
+            <p>
+                I installed the latest version of Arduino IDE and added the SparkFun Apollo3 boards manager using 
+                the JSON link from the official repository.
             </p>
 
             <div class="callout">
-                <strong>Note:</strong> Make sure you have Arduino IDE 2.0+ installed before starting.
+                <strong>Important:</strong> The Artemis board is a <strong>3V board</strong>, NOT 5V. Only 3V inputs!
             </div>
 
-            <h2 id="setup">Setup</h2>
+            <h3>Board Information</h3>
             <p>
-                First, we need to install the SparkFun Apollo3 board support in Arduino IDE:
+                The <strong>SparkFun RedBoard Artemis Nano</strong> is a powerful development board featuring:
             </p>
-            <ol>
-                <li>Open Arduino IDE</li>
-                <li>Go to File → Preferences</li>
-                <li>Add the board manager URL</li>
-                <li>Install SparkFun Apollo3 boards</li>
-            </ol>
+            <ul>
+                <li>Apollo3 Blue microcontroller</li>
+                <li>Bluetooth Low Energy (BLE) connectivity</li>
+                <li>Onboard temperature sensor</li>
+                <li>Pulse Density Microphone (PDM)</li>
+                <li>Low power consumption</li>
+            </ul>
 
-            <h2 id="task1">Task 1: Blink It Up</h2>
+            <h2 id="1a-setup">Setup</h2>
             <p>
-                The classic "Hello World" of embedded systems. Let's make the onboard LED blink!
+                Connected the Artemis board to my computer and selected the correct board and port in Arduino IDE:
+            </p>
+            <ul>
+                <li><strong>Board:</strong> SparkFun RedBoard Artemis Nano</li>
+                <li><strong>Port:</strong> [Your port here]</li>
+            </ul>
+
+            <div class="callout warning">
+                <strong>Connection Tip:</strong> Make sure the USB connector is fully pressed into the Artemis board 
+                to avoid connection issues.
+            </div>
+
+            <h2 id="1a-task1">Task 1: Blink Test</h2>
+            <p>
+                Ran the Blink example from <code>File → Examples → 01.Basics → Blink</code> to test the onboard LED.
             </p>
 
             <h3>Code</h3>
+            <p>
+                I modified the delay to confirm the code was actually running and not some default OS LED blinking:
+            </p>
             <pre><code class="language-cpp">void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
 }
 
 void loop() {
   digitalWrite(LED_BUILTIN, HIGH);
-  delay(1000);
+  delay(100);  // Reduced delay for faster blinking
   digitalWrite(LED_BUILTIN, LOW);
-  delay(1000);
+  delay(100);
 }</code></pre>
 
             <h3>Demo</h3>
-            <p>Here's a video of the LED blinking:</p>
-            <div class="video-container">
-                <!-- Replace with your actual video embed -->
-                <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" 
-                        frameborder="0" 
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                        allowfullscreen>
-                </iframe>
+            <video controls style="max-width: 100%; border-radius: 8px; margin: 24px 0;">
+                <source src="videos/task1-blink.mp4" type="video/mp4">
+            </video>
+
+            <div class="callout success">
+                <strong>Result:</strong> LED blinks at the modified rate, confirming the code is running properly!
             </div>
 
-            <h2 id="task2">Task 2: Serial Communication</h2>
+            <h2 id="1a-task2">Task 2: Serial Monitor Test</h2>
             <p>
-                Testing serial communication at different baud rates. Using <code>Serial.begin(115200)</code> 
-                for optimal performance.
+                Tested serial communication using <code>File → Examples → Apollo3 → Example4_Serial</code>.
             </p>
 
+            <h3>Code Snippet</h3>
             <pre><code class="language-cpp">void setup() {
   Serial.begin(115200);
-  Serial.println("Artemis board initialized!");
+  Serial.println("Artemis Serial Test");
+  Serial.println("Enter text to echo back:");
 }
 
 void loop() {
@@ -111,40 +144,78 @@ void loop() {
   }
 }</code></pre>
 
-            <h2 id="results">Results</h2>
-            <div class="results-grid">
-                <div class="result-card">
-                    <h4>LED Blink Test</h4>
-                    <p>✅ Successfully toggled LED at 1Hz frequency</p>
-                </div>
-                <div class="result-card">
-                    <h4>Serial Communication</h4>
-                    <p>✅ Bidirectional communication working at 115200 baud</p>
-                </div>
-                <div class="result-card">
-                    <h4>Temperature Sensor</h4>
-                    <p>✅ Reading ~22°C ambient temperature</p>
-                </div>
-            </div>
-
-            <h2 id="challenges">Challenges</h2>
-            <div class="callout warning">
-                <strong>Challenge:</strong> Initial upload failed due to incorrect board selection.
-            </div>
-            <p>
-                <strong>Solution:</strong> Selected "SparkFun RedBoard Artemis Nano" instead of 
-                the generic Apollo3 board. This resolved the upload issues.
-            </p>
-
-            <h2 id="conclusion">Conclusion</h2>
-            <p>
-                Successfully set up the Artemis development environment and verified basic functionality. 
-                The board is ready for more complex sensor integration in future labs.
-            </p>
+            <h3>Demo</h3>
+            <p>Spamming the serial monitor to test bidirectional communication at 115200 baud:</p>
+            <video controls style="max-width: 100%; border-radius: 8px; margin: 24px 0;">
+                <source src="videos/task2-serial.mp4" type="video/mp4">
+            </video>
 
             <div class="callout success">
-                <strong>Key Takeaway:</strong> Always verify board selection in Arduino IDE before troubleshooting code!
+                <strong>Result:</strong> Serial communication working perfectly!
             </div>
+
+            <h2 id="1a-task3">Task 3: Temperature Sensor Test</h2>
+            <p>
+                Tested the onboard temperature sensor using <code>File → Examples → Apollo3 → Example2_analogRead</code>.
+            </p>
+
+            <h3>Demo</h3>
+            <p>Heating up the board by blowing air onto it:</p>
+            <video controls style="max-width: 100%; border-radius: 8px; margin: 24px 0;">
+                <source src="videos/task3-temperature.mp4" type="video/mp4">
+            </video>
+
+            <div class="callout success">
+                <strong>Result:</strong> Temperature sensor is responsive and accurately detects temperature changes!
+            </div>
+
+            <h2 id="1a-task4">Task 4: Microphone Test</h2>
+            <p>
+                Tested the Pulse Density Microphone (PDM) using <code>File → Examples → PDM → Example1_MicrophoneOutput</code>.
+            </p>
+
+            <h3>Demo</h3>
+            <p>Playing a 12000Hz audio recording to test if the microphone can detect high frequencies:</p>
+            <video controls style="max-width: 100%; border-radius: 8px; margin: 24px 0;">
+                <source src="videos/task4-microphone.mp4" type="video/mp4">
+            </video>
+
+            <div class="callout success">
+                <strong>Result:</strong> Microphone successfully detects the 12000Hz frequency!
+            </div>
+
+            <!-- ==================== LAB 1B ==================== -->
+            <h2 id="lab1b" style="font-size: 2.5rem; color: #58a6ff; margin-top: 80px; margin-bottom: 30px;">Lab 1B: Bluetooth Communication</h2>
+
+            <h2 id="1b-objective">Objective</h2>
+            <p>
+                The purpose of Lab 1B is to establish communication between your computer and the Artemis board 
+                through the Bluetooth stack. The computer will send Python commands from a Jupyter notebook to 
+                an Artemis board running the Arduino programming language. We will also establish a framework 
+                for sending data from the Artemis to the computer via Bluetooth that will be useful in future labs.
+            </p>
+
+            <h2 id="1b-prelab">Prelab</h2>
+            
+            <h3>Codebase Setup</h3>
+            <p>
+                [Add your explanation of the codebase and how Bluetooth works between computer and Artemis]
+            </p>
+
+            <h3>Understanding Bluetooth Communication</h3>
+            <p>
+                [Explain your understanding of the Bluetooth protocol and communication flow]
+            </p>
+
+            <h2 id="1b-tasks">Tasks</h2>
+            
+            <h3>Task 1: [Task Name]</h3>
+            <p>
+                [Add your Lab 1B task content here]
+            </p>
+
+            <!-- Add more Lab 1B tasks as needed -->
+
         </main>
     </div>
 
