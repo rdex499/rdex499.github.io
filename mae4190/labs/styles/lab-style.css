@@ -240,17 +240,23 @@ body {
 .callout {
     background: rgba(88, 166, 255, 0.1);
     border-left: 4px solid #58a6ff;
-    padding: 16px 20px 16px 50px;
+    padding: 16px 20px 16px 60px;
     margin: 20px 0;
     border-radius: 6px;
     position: relative;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
 }
 
 .callout::before {
     content: '💡';
     position: absolute;
-    left: 16px;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
     font-size: 1.5rem;
+    line-height: 1;
 }
 
 .callout.warning {
