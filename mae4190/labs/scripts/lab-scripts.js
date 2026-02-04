@@ -2,7 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     // Highlight active TOC section on scroll
-    const sections = document.querySelectorAll('h2[id]');
+    const sections = document.querySelectorAll('h2[id], h3[id]');
     const tocLinks = document.querySelectorAll('.toc a');
     
     if (sections.length > 0 && tocLinks.length > 0) {
