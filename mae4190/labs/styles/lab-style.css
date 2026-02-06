@@ -237,7 +237,7 @@ body {
 }
 
 .callout::before {
-    content: '💡';
+    content: '';
     position: absolute;
     left: 20px;
     top: 50%;
@@ -261,7 +261,7 @@ body {
 }
 
 .callout.success::before {
-    content: '✅';
+    content: '';
 }
 
 /* Results section */
