@@ -140,13 +140,6 @@ body {
     position: relative;
 }
 
-.content h2::before {
-    content: '⚡';
-    position: absolute;
-    left: 0;
-    font-size: 1.5rem;
-}
-
 .content h2:first-child {
     margin-top: 0;
 }
