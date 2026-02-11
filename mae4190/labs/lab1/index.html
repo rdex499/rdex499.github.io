@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 1: Artemis Board & Bluetooth - MAE 4190</title>
+    
+    <!-- Shared lab styles -->
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    
+    <!-- Syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">← Back to Dashboard</a>
+            <div>
+                <h1>Lab 1: Artemis Board & Bluetooth 🏹</h1>
+                <p class="lab-meta">MAE 4190 • Spring 2026 • Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main container -->
+    <div class="container">
+        <!-- Table of Contents -->
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li style="margin-bottom: 12px;">
+                    <a href="#lab1a" style="font-weight: 600; color: #58a6ff;">Lab 1A: Setup</a>
+                    <ul style="margin-left: 12px; margin-top: 8px;">
+                        <li><a href="#1a-objective">Objective</a></li>
+                        <li><a href="#1a-prelab">Prelab</a></li>
+                        <li><a href="#1a-setup">Setup</a></li>
+                        <li>
+                            <a href="#1a-tasks" style="font-weight: 500;">Tasks</a>
+                            <ul style="margin-left: 12px; margin-top: 4px;">
+                                <li><a href="#1a-task1">Task 1: Blink</a></li>
+                                <li><a href="#1a-task2">Task 2: Serial</a></li>
+                                <li><a href="#1a-task3">Task 3: Temperature</a></li>
+                                <li><a href="#1a-task4">Task 4: Microphone</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+                <li style="margin-top: 12px;">
+                    <a href="#lab1b" style="font-weight: 600; color: #58a6ff;">Lab 1B: Bluetooth</a>
+                    <ul style="margin-left: 12px; margin-top: 8px;">
+                        <li><a href="#1b-objective">Objective</a></li>
+                        <li><a href="#1b-config">Configurations</a></li>
+                        <li><a href="#1b-codebase">Codebase</a></li>
+                        <li>
+                            <a href="#1b-tasks" style="font-weight: 500;">Tasks</a>
+                            <ul style="margin-left: 12px; margin-top: 4px;">
+                                <li><a href="#1b-task1">Task 1: ECHO</a></li>
+                                <li><a href="#1b-task2">Task 2: THREE_FLOATS</a></li>
+                                <li><a href="#1b-task3">Task 3: TIME_MILLIS</a></li>
+                                <li><a href="#1b-task4">Task 4: Handler</a></li>
+                                <li><a href="#1b-task5">Task 5: Transfer Rate</a></li>
+                                <li><a href="#1b-task6">Task 6: Array Storage</a></li>
+                                <li><a href="#1b-task7">Task 7: Temperature</a></li>
+                                <li><a href="#1b-task8">Task 8: Discussion</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </aside>
+
+        <!-- Main content -->
+        <main class="content">
+            <!-- ==================== LAB 1A ==================== -->
+            <h2 id="lab1a" style="font-size: 2.5rem; color: #58a6ff; margin-bottom: 30px;">Lab 1A: Artemis Board Setup</h2>
+
+            <h2 id="1a-objective">Objective</h2>
+            <p>
+                The purpose of Lab 1A is to setup and become familiar with the Arduino IDE and the Artemis board. 
+                After this lab, we should be comfortable programming the board, using the board LED, reading/writing 
+                serial messages over USB, and using the onboard temperature sensor and Pulse Density Microphone.
+            </p>
+
+            <h2 id="1a-prelab">Prelab</h2>
+            
+            <h3>Arduino IDE Installation</h3>
+            <p>
+                I installed the latest version of Arduino IDE and added the SparkFun Apollo3 boards manager using 
+                the JSON link from the official repository.
+            </p>
+
+            <div class="callout">
+                <strong>Important:</strong> The Artemis board is a <strong>3V board</strong>, NOT 5V. Only 3V inputs!
+            </div>
+
+            <h3>Board Information</h3>
+            <p>
+                The <strong>SparkFun RedBoard Artemis Nano</strong> is a development board featuring:
+            </p>
+            <ul>
+                <li>Apollo3 Blue microcontroller</li>
+                <li>Bluetooth Low Energy (BLE) connectivity</li>
+                <li>Onboard temperature sensor</li>
+                <li>Pulse Density Microphone (PDM)</li>
+                <li>Low power consumption</li>
+            </ul>
+
+            <h2 id="1a-setup">Setup</h2>
+            <p>
+                Connected the Artemis board to my computer and selected the correct board and port in Arduino IDE:
+            </p>
+            <ul>
+                <li><strong>Board:</strong> SparkFun RedBoard Artemis Nano</li>
+                <li><strong>Port:</strong> /dev/cu.usberial-10</li>
+            </ul>
+
+            <h2 id="1a-tasks">Tasks</h2>
+
+            <h3 id="1a-task1">Task 1: Blink Test</h3>
+            <p>
+                Ran the Blink example from <code>File → Examples → 01.Basics → Blink</code> to test the onboard LED.
+            </p>
+
+            <h3>Code</h3>
+            <p>
+                I modified the delay to confirm the code was actually running and not some default OS LED blinking:
+            </p>
+            <pre><code class="language-cpp">void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+}
+
+void loop() {
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(200);  // Reduced delay for faster blinking
+  digitalWrite(LED_BUILTIN, LOW);
+  delay(200);
+}</code></pre>
+
+            <h3>Demo</h3>
+            <video controls style="max-width: 100%; border-radius: 8px; margin: 24px 0;">
+                <source src="videos/task1-blink.mp4" type="video/mp4">
+            </video>
+
+            <div class="callout success">
+                <strong>Result:</strong> LED blinks at the modified rate, confirming the code is running properly!
+            </div>
+
+            <h3 id="1a-task2">Task 2: Serial Monitor Test</h3>
+            <p>
+                Tested serial communication using <code>File → Examples → Apollo3 → Example04_Serial</code>.
+            </p>
+
+            <h3>Demo</h3>
+            <p>Testing the serial monitor to test bidirectional communication at 115200 baud:</p>
+            <video controls style="max-width: 100%; border-radius: 8px; margin: 24px 0;">
+                <source src="videos/task2-serial.mp4" type="video/mp4">
+            </video>
+
+            <div class="callout success">
+                <strong>Result:</strong> Serial communication working perfectly!
+            </div>
+
+            <h3 id="1a-task3">Task 3: Temperature Sensor Test</h3>
+            <p>
+                Tested the onboard temperature sensor using <code>File → Examples → Apollo3 → Example02_analogRead</code>.
+            </p>
+
+            <h3>Demo</h3>
+            <p>Heating up the board by blowing air onto it:</p>
+            <video controls style="max-width: 100%; border-radius: 8px; margin: 24px 0;">
+                <source src="videos/task3-temperature.mp4" type="video/mp4">
+            </video>
+
+            <div class="callout success">
+                <strong>Result:</strong> Temperature sensor is responsive and accurately detects temperature changes!
+            </div>
+
+            <h3 id="1a-task4">Task 4: Microphone Test</h3>
+            <p>
+                Tested the Pulse Density Microphone (PDM) using <code>File → Examples → PDM → Example1_MicrophoneOutput</code>.
+            </p>
+
+            <h3>Demo</h3>
+            <p>Playing a 12000Hz audio recording to test if the microphone can detect high frequencies:</p>
+            <video controls style="max-width: 100%; border-radius: 8px; margin: 24px 0;">
+                <source src="videos/task4-microphone.mp4" type="video/mp4">
+            </video>
+
+            <div class="callout success">
+                <strong>Result:</strong> Microphone successfully detects the 12000Hz frequency!
+            </div>
+
+            <!-- ==================== LAB 1B ==================== -->
+            <h2 id="lab1b" style="font-size: 2.5rem; color: #58a6ff; margin-top: 80px; margin-bottom: 30px;">Lab 1B: Bluetooth Communication</h2>
+
+            <h2 id="1b-objective">Objective</h2>
+            <p>
+                The purpose of Lab 1B is to establish communication between your computer and the Artemis board 
+                through the Bluetooth stack. The computer will send Python commands from a Jupyter notebook to 
+                an Artemis board running the Arduino programming language. We will also establish a framework 
+                for sending data from the Artemis to the computer via Bluetooth that will be useful in future labs.
+            </p>
+
+            <h2 id="1b-config">Config</h2>
+            
+            <div class="callout">
+                <strong>Note:</strong> The Artemis address had to be temporarily changed when, in lab, a different 
+                board was used. Baud rate was set to 115200.
+            </div>
+
+            <h3>Python: connections.yaml</h3>
+            <pre><code class="language-yaml"># connections.yaml
+artemis_address: 'c0:81:a4:24:29:64'
+ble_service: 'c041e110-cafe-cafe-cafe-c0ffeec0ffee'
+characteristics:
+  TX_CMD_STRING: '9750f60b-9c9c-4158-b620-02ec9521cd99'
+  RX_FLOAT: '27616294-3063-4ecc-b60b-3470ddef2938'
+  RX_STRING: 'f235a225-6735-4d73-94cb-ee5dfce9ba83'</code></pre>
+
+            <h3>Arduino IDE: ble_arduino.ino</h3>
+            <pre><code class="language-cpp">// BLE Service UUID - must match connections.yaml
+#define BLE_UUID_TEST_SERVICE "c041e110-cafe-cafe-cafe-c0ffeec0ffee"
+
+// Characteristic UUIDs
+#define BLE_UUID_RX_STRING "f235a225-6735-4d73-94cb-ee5dfce9ba83"
+#define BLE_UUID_TX_CMD_STRING "9750f60b-9c9c-4158-b620-02ec9521cd99"
+#define BLE_UUID_RX_FLOAT "27616294-3063-4ecc-b60b-3470ddef2938"</code></pre>
+
+            <h3>Successful Connection</h3>
+            <p>Computer side - Python successfully connects to Artemis:</p>
+            <img src="images/ble-connection-success.png" alt="Successful BLE Connection from Computer" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <p>Artemis side - Serial monitor shows connection established:</p>
+            <pre><code class="language-plaintext">12:16:15.840 -> Advertising BLE with MAC: c0:81:75:25:a:64
+12:16:27.334 -> Connected to: 6c:7e:67:bd:52:58</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> BLE connection established successfully on both sides!
+            </div>
+
+            <h2 id="1b-codebase">Codebase: BLE Architecture</h2>
+            
+            <h3>UUID Selection</h3>
+            <p>
+                The BLE service UUID is the ID that the Artemis board advertises. As long as it follows the UUID format 
+                (8-4-4-4-12 hex digits) and is unique, it can be anything. I tested this by creating a custom UUID 
+                (<code>c041e110-cafe-cafe-cafe-c0ffeec0ffee</code>) and confirmed it worked after updating both the 
+                Arduino sketch and Python config with matching UUIDs.
+            </p>
+
+            <h3>Communication Flow</h3>
+            <p>
+                The Artemis (peripheral) advertises a BLE service with multiple characteristics. The laptop (central) 
+                connects by searching for the UUID, writes commands to a string characteristic, and subscribes to 
+                notify-enabled characteristics for replies. Commands are encoded as strings with a numeric type and 
+                optional values. The Artemis tokenizes these, processes them, and sends back strings or floats 
+                asynchronously via notify.
+            </p>
+
+            <h2 id="1b-tasks">Tasks</h2>
+            
+            <p>
+                In order to test the robot's sensors more effectively, it is critical to have a working wireless debugging 
+                system. The following tasks ensure that we can receive timestamped messages from the Artemis board.
+            </p>
+
+            <h3 id="1b-task1">Task 1: ECHO Command</h3>
+            <p>
+                Send a string value from the computer to the Artemis board using the ECHO command. The computer should 
+                then receive and print an augmented string.
+            </p>
+
+            <h4>Python Code and Output</h4>
+            <img src="images/task1-python-echo.png" alt="Task 1 Python ECHO command and output" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:16:15.840 -> Advertising BLE with MAC: c0:81:75:25:a:64
+12:16:27.334 -> Connected to: 6c:7e:67:bd:52:58
+12:24:04.114 -> Sent back: Robot says -> Wakey wakey, it's time for school!</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> ECHO command working! Artemis receives string and sends back augmented version.
+            </div>
+
+            <h3 id="1b-task2">Task 2: SEND_THREE_FLOATS</h3>
+            <p>
+                Send three floats to the Artemis board using the SEND_THREE_FLOATS command and extract the three float 
+                values in the Arduino sketch.
+            </p>
+
+            <h4>Python Code</h4>
+            <img src="images/task2-python-floats.png" alt="Task 2 Python SEND_THREE_FLOATS command" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:40:16.041 -> Three Floats: 1.00, 2.00, 3.00</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Successfully sent and extracted three float values!
+            </div>
+
+            <h3 id="1b-task3">Task 3: GET_TIME_MILLIS</h3>
+            <p>
+                Add a command GET_TIME_MILLIS which makes the robot reply with a string such as "T:123456" to the 
+                string characteristic.
+            </p>
+
+            <h4>Python Code and Output</h4>
+            <img src="images/task3-python-time.png" alt="Task 3 Python GET_TIME_MILLIS command" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:41:10.062 -> Sent back: T:193600</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Successfully implemented GET_TIME_MILLIS command and received timestamp!
+            </div>
+
+            <h3 id="1b-task4">Task 4: Notification Handler</h3>
+            <p>
+                Setup a notification handler in Python to receive the string value (the BLEStringCharacteristic in Arduino) 
+                from the Artemis board. In the callback function, extract the time from the string.
+            </p>
+
+            <h4>Python Code and Output</h4>
+            <img src="images/task4-python-handler.png" alt="Task 4 Python notification handler" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:42:32.490 -> Sent back: T:275972</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Notification handler successfully extracts runtime from string (275972 ms)!
+            </div>
+
+            <h3 id="1b-task5">Task 5: Data Transfer Rate</h3>
+            <p>
+                Write a loop that gets the current time in milliseconds and sends it to your laptop to be received and 
+                processed by the notification handler. Collect these values for a few seconds and use the time stamps 
+                to determine how fast messages can be sent.
+            </p>
+
+            <h4>Python Handler Code</h4>
+            <pre><code class="language-python">timestamps = []
+
+def handler_task5(uuid, bytearray):
+    indexT = bytearray.find(b"T:")
+    runtime = int(bytearray[indexT+2:])
+    timestamps.append(runtime)
+
+ble.start_notify(ble.uuid['RX_STRING'], handler_task5)
+
+repeat = 10
+for i in range(repeat):
+    ble.send_command(CMD.GET_TIME_MILLIS, "")
+
+time.sleep(.2)
+ble.stop_notify(ble.uuid['RX_STRING'])</code></pre>
+
+            <h4>Data Transfer Rate Analysis</h4>
+            <img src="images/task5-transfer-rate.png" alt="Task 5 data transfer rate calculation" style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:54:43.830 -> Sent back: T:31654
+12:54:43.863 -> Sent back: T:31716
+12:54:43.928 -> Sent back: T:31778
+12:54:43.994 -> Sent back: T:31840
+12:54:44.061 -> Sent back: T:31902
+12:54:44.125 -> Sent back: T:31954
+12:54:44.190 -> Sent back: T:32016
+12:54:44.256 -> Sent back: T:32078
+12:54:44.288 -> Sent back: T:32140
+12:54:44.354 -> Sent back: T:32202</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Average time between messages: ~60.89 ms. Effective data transfer rate achieved!
+            </div>
+
+            <h3 id="1b-task6">Task 6: Array Storage</h3>
+            <p>
+                Create an array that can store time stamps. This array should be defined globally so that other functions 
+                can access it if need be. In the loop, rather than send each time stamp, place each time stamp into the 
+                array. Add a command SEND_TIME_DATA which loops the array and sends each data point as a string to your 
+                laptop to be processed.
+            </p>
+
+            <p>
+                The time array is defined globally with a maximum size of 100 elements. As timestamps are collected, 
+                they're stored in the array using a circular buffer approach. When the array is full, the 
+                SEND_TIME_DATA command sends all stored timestamps in chronological order.
+            </p>
+
+            <h4>Python Handler Code</h4>
+            <pre><code class="language-python">def handler_task6(uuid, bytearray):
+    data_str = ble.bytearray_to_string(bytearray)
+    timestamp = int(data_str)
+    timestamps.append(timestamp)
+    print(f"Timestamp: {timestamp}")
+
+#------------------------------------------------------
+
+timestamps = []
+
+ble.start_notify(ble.uuid['RX_STRING'], handler_task6)
+
+ble.send_command(CMD.SEND_TIME_DATA, "")
+
+time.sleep(2)  # Wait for 100 data points (reduction not recommended)
+ble.stop_notify(ble.uuid['RX_STRING'])
+
+print(f"\nTotal received: {len(timestamps)}")</code></pre>
+
+            <h4>Arduino Code (SEND_TIME_DATA)</h4>
+            <pre><code class="language-cpp">case SEND_TIME_DATA:
+    {
+        int current_pos = array_index % MAX_ARRAY_SIZE;        
+
+        // Send the "old" part | from current position to end of array
+        for (int i = current_pos; i < MAX_ARRAY_SIZE; i++) {
+            tx_estring_value.clear();
+            tx_estring_value.append(time_array[i]);
+            tx_characteristic_string.writeValue(tx_estring_value.c_str());
+        }
+
+        // Send the "new" part | from start of array to current position
+        for (int i = 0; i < current_pos; i++) {
+            tx_estring_value.clear();
+            tx_estring_value.append(time_array[i]);
+            tx_characteristic_string.writeValue(tx_estring_value.c_str());
+        }
+
+        Serial.print("Time data transfer finished | ");
+        Serial.print(MAX_ARRAY_SIZE);
+        Serial.println(" data points");
+        break;
+    }</code></pre>
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">12:58:22.458 -> Time data transfer finished | 100 data points</code></pre>
+
+            <h4>Python Output</h4>
+            <pre><code class="language-plaintext">Timestamp: 693733
+Timestamp: 693743
+Timestamp: 693753
+...
+Timestamp: 694713
+Timestamp: 694723
+
+Total received: 100</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Successfully stored 100 timestamps in array and sent all data in batch!
+            </div>
+
+            <h3 id="1b-task7">Task 7: Temperature Array</h3>
+            <p>
+                Add a second array that is the same size as the time stamp array. Use this array to store temperature 
+                readings. Each element in both arrays should correspond (i.e., the first time stamp was recorded at the 
+                same time as the first temperature reading). Add a command GET_TEMP_READINGS that loops through both 
+                arrays concurrently and sends each temperature reading with a time stamp.
+            </p>
+
+            <h4>Python Handler Code</h4>
+            <pre><code class="language-python">timeKey = "T:"
+tempKey = "|TEMP:"
+timestamps, temperatures = [], []
+
+#------------------------------------------------------
+
+def handler_task7(uuid, bytearray):
+
+    timeIndex = bytearray.find(timeKey.encode('utf-8'))
+    tempIndex = bytearray.find(tempKey.encode('utf-8'))
+
+    currentTime = int(bytearray[timeIndex+2:tempIndex])
+    currentTemp = float(bytearray[tempIndex+6:])
+
+    timestamps.append(currentTime)
+    temperatures.append(currentTemp)
+
+    print(f"Timestamp {len(timestamps)}: {currentTime} | Temperature: {currentTemp}")
+
+#------------------------------------------------------
+# ble.connect()
+
+ble.start_notify(ble.uuid['RX_STRING'], handler_task7)
+
+ble.send_command(CMD.GET_TEMP_READINGS, "")
+
+time.sleep(2) # Wait for 100 data points (reduction not recommended)
+ble.stop_notify(ble.uuid['RX_STRING'])
+
+print(f"\nTotal received: {len(timestamps)}")</code></pre>
+
+            <h4>Arduino Code (GET_TEMP_READINGS)</h4>
+            <pre><code class="language-cpp">case GET_TEMP_READINGS:
+    {    
+        int current_pos = array_index % MAX_ARRAY_SIZE;        
+
+        // Send the "old" part | from current position to end of array
+        for (int i = current_pos; i < MAX_ARRAY_SIZE; i++) {
+            tx_estring_value.clear();
+            tx_estring_value.append("T:");
+            tx_estring_value.append(time_array[i]);
+            tx_estring_value.append("|TEMP:");
+            tx_estring_value.append(temp_array[i]);
+            tx_characteristic_string.writeValue(tx_estring_value.c_str());
+        }
+
+        // Send the "new" part | from start of array to current position
+        for (int i = 0; i < current_pos; i++) {
+            tx_estring_value.clear();
+            tx_estring_value.append("T:");
+            tx_estring_value.append(time_array[i]);
+            tx_estring_value.append("|TEMP:");
+            tx_estring_value.append(temp_array[i]);
+            tx_characteristic_string.writeValue(tx_estring_value.c_str());
+        }
+
+        Serial.print("Temp data transfer finished | ");
+        Serial.print(MAX_ARRAY_SIZE);
+        Serial.println(" data points");
+        break;
+    }</code></pre>
+
+            <h4>Arduino Serial Output</h4>
+            <pre><code class="language-plaintext">13:05:48.949 -> Time data transfer finished | 100 data points</code></pre>
+
+            <h4>Python Output</h4>
+            <pre><code class="language-plaintext">Timestamp 1: 678764 | Temperature: 78.28
+Timestamp 2: 678774 | Temperature: 78.28
+Timestamp 3: 678784 | Temperature: 79.302
+...
+Timestamp 99: 679744 | Temperature: 78.28
+Timestamp 100: 679754 | Temperature: 78.28
+
+Total received: 100</code></pre>
+
+            <div class="callout success">
+                <strong>Result:</strong> Successfully stored and sent 100 paired timestamp/temperature readings!
+            </div>
+
+            <h3 id="1b-task8">Task 8: Discussion</h3>
+            <p>
+                Discuss the differences between these two methods (streaming vs. batching), the advantages and disadvantages 
+                of both and the potential scenarios that you might choose one method over the other.
+            </p>
+
+            <h4>Method 1: Live Streaming (Task 5)</h4>
+            <p>
+                Send data live. Python requests current timestamp individually and the microcontroller responds. Real time 
+                data with no memory constraints.
+            </p>
+            <p>
+                <strong>Tradeoff:</strong> Sampling rate is limited due to BLE (Bluetooth) round trip delays (60ms latency 
+                avg ~ 16.7Hz sampling rate)
+            </p>
+
+            <h4>Method 2: Batch Recording (Tasks 6-7)</h4>
+            <p>
+                Uses the microcontroller as a blackbox: continuously logs data on-board at very high speeds (up to 1000Hz), 
+                and then sends a large data packet when requested. This results in less BLE overhead and higher data rates.
+            </p>
+            <p>
+                <strong>Tradeoff:</strong> Limited RAM: with 362 kB available (after 31 kB used by global variables according 
+                to Arduino IDE post flashing the board), you can store roughly 45,000 timestamp-temperature pairs (4 bytes + 
+                4 bytes each). At 100 Hz sampling, this gives ~7.5 minutes of recording before running out of memory.
+            </p>
+
+            <div class="callout">
+                <strong>Key Takeaway:</strong> Use Method 1 for real-time monitoring and Method 2 for high-speed data logging 
+                with post-processing.
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Shared lab scripts -->
+    <script src="../scripts/lab-scripts.js"></script>
+    
+    <!-- Initialize syntax highlighting -->
+    <script>
+        hljs.highlightAll();
+    </script>
+</body>
+</html>
