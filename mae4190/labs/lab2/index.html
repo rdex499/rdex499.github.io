@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 2: IMU - MAE 4190</title>
+    
+    <!-- Shared lab styles -->
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    
+    <!-- Syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">← Back to Dashboard</a>
+            <div>
+                <h1>Lab 2: IMU 📡</h1>
+                <p class="lab-meta">MAE 4190 • Spring 2026 • Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main container -->
+    <div class="container">
+        <!-- Table of Contents -->
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li>
+                    <a href="#setup" style="font-weight: 600; color: #58a6ff;">Set Up the IMU</a>
+                    <ul style="margin-left: 12px; margin-top: 8px;">
+                        <li><a href="#setup-connections">Connections</a></li>
+                        <li><a href="#setup-example">Example Code</a></li>
+                        <li><a href="#setup-ad0">AD0_VAL</a></li>
+                        <li><a href="#setup-data">Accel & Gyro Data</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top: 12px;">
+                    <a href="#accelerometer" style="font-weight: 600; color: #58a6ff;">Accelerometer</a>
+                    <ul style="margin-left: 12px; margin-top: 8px;">
+                        <li><a href="#accel-pitch-roll">Pitch & Roll</a></li>
+                        <li><a href="#accel-accuracy">Accuracy</a></li>
+                        <li><a href="#accel-fft">Noise & FFT</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top: 12px;">
+                    <a href="#gyroscope" style="font-weight: 600; color: #58a6ff;">Gyroscope</a>
+                    <ul style="margin-left: 12px; margin-top: 8px;">
+                        <li><a href="#gyro-angles">Pitch, Roll & Yaw</a></li>
+                        <li><a href="#gyro-comp-filter">Complementary Filter</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top: 12px;">
+                    <a href="#sample-data" style="font-weight: 600; color: #58a6ff;">Sample Data</a>
+                    <ul style="margin-left: 12px; margin-top: 8px;">
+                        <li><a href="#sample-speed">Sampling Speed</a></li>
+                        <li><a href="#sample-arrays">Timestamped Arrays</a></li>
+                        <li><a href="#sample-ble">5s BLE Transfer</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top: 12px;">
+                    <a href="#stunt" style="font-weight: 600; color: #58a6ff;">Record a Stunt</a>
+                </li>
+            </ul>
+        </aside>
+
+        <!-- Main content -->
+        <main class="content">
+
+            <!-- ==================== SET UP THE IMU ==================== -->
+            <h2 id="setup">Set Up the IMU</h2>
+
+            <h3 id="setup-connections">Artemis IMU Connections</h3>
+            <p>
+                The ICM-20948 IMU was connected to the Artemis board using the QWIIC connector,
+                which communicates over the I2C protocol. The
+                <strong>SparkFun 9DOF IMU Breakout – ICM 20948</strong> Arduino library
+                was installed through the Arduino Library Manager to interface with the sensor.
+            </p>
+
+            <img src="images/imu-connections.png"
+                alt="IMU Connections"
+                style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <h3 id="setup-example">Example Code Verification</h3>
+            <p>
+                The example sketch
+                <code>Example1_Basics</code> was uploaded to verify that the IMU initializes
+                correctly and streams accelerometer, gyroscope, magnetometer, and temperature data.
+                Successful initialization confirmed that I2C communication was functioning properly.
+            </p>
+
+            <video controls style="max-width: 100%; border-radius: 8px; margin: 24px 0;">
+                <source src="videos/imu-works.mp4" type="video/mp4">
+            </video>
+
+            <div class="callout success">
+                <strong>Result:</strong> IMU successfully detected and streaming scaled AGMT data.
+            </div>
+
+            <p>
+                Added a visual startup indicator. Now, the onboard LED blinks three times
+                on boot to confirm the board is running, which is useful later when operating
+                on battery power without serial access.
+            </p>
+
+            <pre><code class="language-cpp">// In setup(), before IMU init:
+pinMode(LED_BUILTIN, OUTPUT);
+for (int i = 0; i < 3; i++) {
+    digitalWrite(LED_BUILTIN, HIGH); delay(500);
+    digitalWrite(LED_BUILTIN, LOW);  delay(500);
+}</code></pre>
+
+            <h3 id="setup-ad0">AD0_VAL Discussion</h3>
+            <p>
+                The <code>AD0_VAL</code> definition determines the least significant bit of the IMU's
+                I2C address. The ICM-20948 supports two possible addresses depending on whether
+                the ADR jumper is bridged:
+            </p>
+
+            <ul>
+                <li><code>AD0_VAL = 1</code> → I2C address <code>0x69</code> (ADR jumper not bridged, <strong>default</strong>)</li>
+                <li><code>AD0_VAL = 0</code> → I2C address <code>0x68</code> (ADR jumper bridged)</li>
+            </ul>
+
+            <p>
+                On the SparkFun breakout, the ADR jumper is not bridged by default, so the
+                address is <code>0x69</code>. The example code already defaults to
+                <code>AD0_VAL = 1</code>, which matches our board — no change needed.
+            </p>
+
+            <pre><code class="language-cpp">#define AD0_VAL 1  // default: ADR jumper not bridged → 0x69</code></pre>
+
+            <h3 id="setup-data">Acceleration & Gyroscope Data</h3>
+
+            <p>
+                The board was rotated, flipped, and accelerated to observe how each sensor responds.
+            </p>
+
+            <ul>
+                <li>
+                    <strong>Accelerometer:</strong> Measures linear acceleration, including gravity.
+                    When the board is placed flat on a table, the Z-axis reads approximately +1g
+                    (≈1000 mg) while the X and Y axes are near 0g. When rotated 90° onto its side,
+                    gravity shifts to the corresponding axis, demonstrating that the accelerometer
+                    measures the projection of the gravity vector onto each axis.
+                    Small variations are visible even when the board is held still, indicating
+                    measurement noise inherent to the sensor.
+                </li>
+
+                <li>
+                    <strong>Gyroscope:</strong> Measures angular velocity (deg/s). When the board
+                    is stationary, all gyro axes read approximately 0 dps. During rotation,
+                    the axis of rotation shows a spike proportional to angular velocity,
+                    returning to zero once motion stops. Unlike the accelerometer,
+                    the gyroscope does not provide absolute orientation.
+                </li>
+            </ul>
+
+            <p>
+                The small fluctuations observed in both accelerometer and gyroscope readings,
+                even when the board is stationary, are due to sensor noise and minor electrical
+                and mechanical disturbances. This noise motivates the filtering techniques
+                implemented later in the lab.
+            </p>
+
+            <p>
+                <strong>Flat on table:</strong> Z-axis ≈ 1000 mg (gravity), X and Y axes ≈ 0 mg.
+                Gyroscope reads ~0 dps on all axes.
+            </p>
+            <img src="images/imu-flat.png"
+                alt="IMU output while flat — Z-axis shows ~1g, X/Y near zero"
+                style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+            <p>
+                <strong>Rotated 90° onto its side:</strong> Gravity shifts from the Z-axis to the
+                axis now pointing downward, confirming correct orientation sensing.
+            </p>
+            <img src="images/imu-side.png"
+                alt="IMU output rotated 90° — gravity shifts to the side-facing axis"
+                style="max-width: 100%; border-radius: 8px; margin: 24px 0; border: 1px solid #30363d;">
+
+
+            <!-- ==================== ACCELEROMETER ==================== -->
+            <h2 id="accelerometer">Accelerometer</h2>
+
+            <h3 id="accel-pitch-roll">Pitch & Roll at {-90, 0, 90} Degrees</h3>
+            <p>
+                Converted accelerometer data into pitch and roll using:
+            </p>
+            <pre><code class="language-cpp">#include &lt;math.h&gt;
+
+float pitch_a = atan2(myICM.accX(), myICM.accZ()) * 180.0 / M_PI;
+float roll_a  = atan2(myICM.accY(), myICM.accZ()) * 180.0 / M_PI;</code></pre>
+
+            <p>
+                Used the table surface and edges as guides to position the IMU at known angles:
+            </p>
+            <!-- TODO: Add image(s) showing output at {-90, 0, 90} for pitch and roll -->
+            <!-- <img src="images/accel-pitch-roll-90.png" alt="Pitch and roll at -90, 0, 90 degrees"> -->
+
+            <h3 id="accel-accuracy">Accuracy Discussion</h3>
+            <p>
+                <!-- TODO: Discuss how accurate the readings are at known angles. Two-point calibration? -->
+            </p>
+
+            <h3 id="accel-fft">Noise in the Frequency Spectrum</h3>
+            <p>
+                Tapped the sensor to introduce vibrations and collected accelerometer data over time.
+                Performed an FFT in Python to analyze the frequency content of the noise.
+            </p>
+
+            <pre><code class="language-python">import numpy as np
+import matplotlib.pyplot as plt
+
+# TODO: Replace with actual data
+Fs = ...  # sampling frequency (Hz)
+data = ...  # pitch or roll time series
+
+fft_vals = np.fft.rfft(data)
+freqs = np.fft.rfftfreq(len(data), d=1.0/Fs)
+
+plt.figure(figsize=(10, 4))
+plt.plot(freqs, np.abs(fft_vals))
+plt.xlabel('Frequency (Hz)')
+plt.ylabel('Magnitude')
+plt.title('FFT of Accelerometer Pitch')
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()</code></pre>
+
+            <!-- TODO: Add FFT graph images -->
+            <!-- <img src="images/fft-pitch.png" alt="FFT of accelerometer pitch"> -->
+
+            <p>
+                <!-- TODO: Discuss the results — what frequencies does the noise occupy? -->
+            </p>
+
+
+            <!-- ==================== GYROSCOPE ==================== -->
+            <h2 id="gyroscope">Gyroscope</h2>
+
+            <h3 id="gyro-angles">Pitch, Roll & Yaw</h3>
+            <p>
+                Computed pitch, roll, and yaw by integrating gyroscope angular velocity data:
+            </p>
+
+            <pre><code class="language-cpp">float dt = (micros() - last_time) / 1000000.0;
+last_time = micros();
+
+pitch_g += myICM.gyrX() * dt;
+roll_g  += myICM.gyrY() * dt;
+yaw_g   += myICM.gyrZ() * dt;</code></pre>
+
+            <p>
+                Tested at different IMU positions and orientations:
+            </p>
+            <!-- TODO: Add images of gyroscope pitch/roll/yaw at different positions -->
+            <!-- <img src="images/gyro-positions.png" alt="Gyroscope data at different IMU positions"> -->
+
+            <h3 id="gyro-comp-filter">Complementary Filter</h3>
+            <p>
+                The complementary filter fuses the accelerometer (accurate long-term, noisy short-term)
+                with the gyroscope (smooth short-term, drifts long-term):
+            </p>
+
+            <pre><code class="language-cpp">float alpha = 0.98;  // TODO: tune
+
+float dt = (micros() - last_time) / 1000000.0;
+last_time = micros();
+
+pitch = alpha * (pitch + myICM.gyrX() * dt) + (1 - alpha) * pitch_a;
+roll  = alpha * (roll  + myICM.gyrY() * dt) + (1 - alpha) * roll_a;</code></pre>
+
+            <div class="callout">
+                <strong>Design Choice:</strong> <code>alpha ≈ 0.98</code> — trusts the gyroscope for
+                short-term changes (98%) and uses the accelerometer to correct drift (2%).
+                <!-- TODO: Discuss your specific alpha choice and why -->
+            </div>
+
+            <p>
+                Demonstrating the accuracy and range of the complementary filter:
+            </p>
+            <!-- TODO: Show plots/video demonstrating accuracy, range, no drift, no vibration sensitivity -->
+            <!-- <img src="images/comp-filter-plot.png" alt="Complementary filter vs raw data"> -->
+
+            <div class="callout success">
+                <strong>Result:</strong> <!-- TODO: Fill in results -->
+                Complementary filter stable and drift-free — results TBD.
+            </div>
+
+
+            <!-- ==================== SAMPLE DATA ==================== -->
+            <h2 id="sample-data">Sample Data</h2>
+
+            <h3 id="sample-speed">Speed of Sampling</h3>
+            <p>
+                <!-- TODO: Measure how fast the main loop can sample the IMU (without delays) -->
+                <!-- Report: "The IMU can be sampled at ~XXX Hz" -->
+            </p>
+
+            <h3 id="sample-arrays">Timestamped IMU Data in Arrays</h3>
+            <p>
+                Stored timestamped IMU readings in global arrays on the Artemis, reusing the batch
+                recording approach from Lab 1B:
+            </p>
+
+            <pre><code class="language-cpp">// Global arrays for IMU data logging
+#define MAX_DATA_SIZE 500
+
+int time_array[MAX_DATA_SIZE];
+float pitch_array[MAX_DATA_SIZE];
+float roll_array[MAX_DATA_SIZE];
+float yaw_array[MAX_DATA_SIZE];
+int data_index = 0;
+
+// In the main loop (no BLE overhead):
+if (data_index < MAX_DATA_SIZE) {
+    time_array[data_index] = millis();
+    pitch_array[data_index] = pitch;
+    roll_array[data_index] = roll;
+    yaw_array[data_index] = yaw;
+    data_index++;
+}</code></pre>
+
+            <!-- TODO: Show evidence of collected data -->
+
+            <h3 id="sample-ble">5s of IMU Data over Bluetooth</h3>
+            <p>
+                Sent 5 seconds of collected IMU data from the Artemis to the laptop over BLE:
+            </p>
+
+            <!-- TODO: Add Arduino SEND_IMU_DATA command and Python handler code -->
+
+            <pre><code class="language-python"># Python handler to receive and parse IMU data
+timestamps, pitches, rolls, yaws = [], [], [], []
+
+def handler_imu(uuid, bytearray_data):
+    data_str = ble.bytearray_to_string(bytearray_data)
+    # TODO: Parse "T:xxx|P:xxx|R:xxx|Y:xxx" format
+    pass
+
+ble.start_notify(ble.uuid['RX_STRING'], handler_imu)
+ble.send_command(CMD.SEND_IMU_DATA, "")
+time.sleep(5)
+ble.stop_notify(ble.uuid['RX_STRING'])</code></pre>
+
+            <!-- TODO: Add output showing received 5s of data -->
+            <!-- <img src="images/ble-imu-5s.png" alt="5s of IMU data received over BLE"> -->
+
+            <div class="callout success">
+                <strong>Result:</strong> <!-- TODO -->
+                Successfully sent 5s of timestamped IMU data over BLE — results TBD.
+            </div>
+
+
+            <!-- ==================== RECORD A STUNT ==================== -->
+            <h2 id="stunt">Record a Stunt</h2>
+            <p>
+                Played around with the RC car to observe its behavior and get a feel for the dynamics:
+            </p>
+            <!-- TODO: Add video(s) of you playing with the car -->
+            <!-- <video controls style="max-width: 100%; border-radius: 8px; margin: 24px 0;">
+                <source src="videos/stunt.mp4" type="video/mp4">
+            </video> -->
+
+            <p>
+                <!-- TODO: Discuss observations — speed, handling, does it flip? turning radius? -->
+            </p>
+
+        </main>
+    </div>
+
+    <!-- Shared lab scripts -->
+    <script src="../scripts/lab-scripts.js"></script>
+    
+    <!-- Initialize syntax highlighting -->
+    <script>
+        hljs.highlightAll();
+    </script>
+</body>
+</html>
