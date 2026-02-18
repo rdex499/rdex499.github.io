@@ -319,7 +319,7 @@ Serial.println(loop_count);</code></pre>
             <h3 id="sample-arrays">Timestamped IMU Data in Arrays</h3>
             <p>Separate arrays are used for accelerometer, gyroscope, and complementary filter data. This avoids packing everything into one large struct and makes it easy to send only the data needed per command. All arrays share the same timestamp array since they are collected in lockstep.</p>
             <pre><code class="language-cpp">#define IMU_ARRAY_SIZE 300
-
+ 
 int   imu_time[IMU_ARRAY_SIZE];
 float imu_pitch[IMU_ARRAY_SIZE],   imu_roll[IMU_ARRAY_SIZE];
 float imu_pitch_f[IMU_ARRAY_SIZE], imu_roll_f[IMU_ARRAY_SIZE];
