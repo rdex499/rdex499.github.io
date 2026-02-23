@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 3: Time of Flight Sensors - MAE 4190</title>
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        .data-table { width:100%; border-collapse:collapse; margin:20px 0; font-size:0.92rem; }
+        .data-table th { background:#161b22; color:#58a6ff; padding:10px 14px; text-align:left; font-weight:600; border-bottom:2px solid #30363d; }
+        .data-table td { padding:9px 14px; border-bottom:1px solid #21262d; color:#c9d1d9; }
+        .data-table tr:hover td { background:#161b22; }
+        .data-table .good { color:#3fb950; font-weight:600; }
+        .data-table .warn { color:#d29922; font-weight:600; }
+        .data-table .axis { color:#58a6ff; font-weight:600; }
+        .formula-block { background:#0d1117; border:1px solid #30363d; border-left:3px solid #58a6ff; border-radius:6px; padding:16px 20px; margin:18px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:1.0rem; color:#e6edf3; line-height:2.0; }
+        .formula-block .comment { color:#8b949e; font-size:0.85rem; }
+        .insight { background:#111820; border:1px solid #1f6feb; border-radius:8px; padding:14px 18px; margin:18px 0; color:#c9d1d9; font-size:0.93rem; line-height:1.6; }
+        .insight strong { color:#58a6ff; }
+        .img-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0; }
+        .img-grid figure { margin:0; }
+        .img-grid img { width:100%; border-radius:8px; border:1px solid #30363d; }
+        .img-grid figcaption { font-size:0.82rem; color:#8b949e; text-align:center; margin-top:6px; }
+        .img-full { width:100%; border-radius:8px; border:1px solid #30363d; margin:20px 0; }
+        .section-rule { border:none; border-top:1px solid #21262d; margin:36px 0; }
+        .serial-output { background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:14px 18px; margin:16px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:0.88rem; color:#7ee787; line-height:1.8; white-space:pre-wrap; }
+        .serial-output .label { color:#8b949e; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">← Back to Dashboard</a>
+            <div>
+                <h1>Lab 3: Time of Flight Sensors ✈️</h1>
+                <p class="lab-meta">MAE 4190 • Spring 2026 • Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li>
+                    <a href="#prelab" style="font-weight:600;color:#58a6ff;">Prelab</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#prelab-wiring">Wiring Plan</a></li>
+                        <li><a href="#prelab-i2c">I²C Address Configuration</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#lab-tasks" style="font-weight:600;color:#58a6ff;">Lab Tasks</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#tof-connections">ToF Sensor Connections</a></li>
+                        <li><a href="#i2c-discovery">I²C Device Discovery</a></li>
+                        <li><a href="#accuracy-setup">Accuracy Test Setup</a></li>
+                        <li><a href="#accuracy-mode">Accuracy Testing & Mode Selection</a></li>
+                        <li><a href="#parallel-reading">Parallel Sensor Reading & Speed</a></li>
+                        <li><a href="#data-collection">Combined Data Collection</a></li>
+                        <li><a href="#tof-time-plot">ToF vs Time</a></li>
+                        <li><a href="#imu-time-plot">IMU vs Time</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;"><a href="#architecture" style="font-weight:600;color:#58a6ff;">Code Architecture</a></li>
+                <li style="margin-top:12px;"><a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a></li>
+            </ul>
+        </aside>
+
+        <main class="content">
+
+            <!-- ==================== PRELAB ==================== -->
+            <h2 id="prelab">Prelab</h2>
+
+            <h3 id="prelab-wiring">Wiring Plan</h3>
+            <p>The two VL53L1X ToF sensors and the ICM-20948 IMU share a single I²C bus via a QWIIC multiport splitter. A short QWIIC cable connects the Artemis Nano to the splitter, two long cables run to the ToF sensors (for flexible mounting on the car), and the last short cable connects the IMU.</p>
+
+            <p>One sensor will be mounted on the <strong>front</strong> and one on the <strong>side</strong> of the car. This gives the robot forward obstacle detection for collision avoidance and lateral distance measurements for wall-following. Combined with IMU orientation data, the robot can potentially estimate its position within a known arena using two distance readings and a heading angle. More sensors on each side would be ideal for redundancy, but this is the best configuration given available resources.</p>
+
+            <p>With sensors on the front and side, the robot will detect obstacles ahead and to the side; this will be useful for avoiding walls during turns. This configuration has a blind spot behind the robot, so reversing will require caution.</p>
+
+            <img src="images/wiring-diagram.png" alt="Wiring diagram" class="img-full">
+
+            <p>Both ToF sensors have their <strong>XSHUT</strong> pins wired to GPIO: ToF 1 to pin 5, ToF 2 to pin 6. Most setups only wire one XSHUT pin, but I wired both because reflashing the microcontroller while the sensors are powered causes address conflicts if one sensor has already been reassigned. Without hardware reset capability on both, you'd need to unplug and replug the sensors every time or write additional recovery code. With both XSHUT pins wired, a software reset on boot returns both sensors to their default address. Plug and play.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="prelab-i2c">I²C Address Configuration</h3>
+            <p>The VL53L1X default I²C address is <code>0x52</code> (8-bit) which appears as <code>0x29</code> (7-bit) on a bus scan. The last bit in the 8-bit address is the read/write bit, whereas the actual device identifier is the upper 7 bits. These addresses are embedded in hardware and are non-volatile, so both sensors power up at <code>0x29</code> every time.</p>
+
+            <p>To run two sensors on the same bus, we need unique addresses. Using GPIO pins A5 and 6 for XSHUT, the startup sequence shuts down both sensors, wakes one alone to reassign it, then wakes the second:</p>
+
+            <pre><code class="language-cpp">// Shut down both sensors (reset addresses to 0x29)
+digitalWrite(XSHUT_TOF1, LOW);
+digitalWrite(XSHUT_TOF2, LOW);
+delay(10);
+
+// Wake sensor 1 alone, reassign to 0x30
+digitalWrite(XSHUT_TOF1, HIGH);
+delay(10);
+tof1.begin();
+tof1.setI2CAddress(TOF1_ADDR_8BIT);  // 0x60 → appears as 0x30
+
+// Wake sensor 2 at default 0x29
+digitalWrite(XSHUT_TOF2, HIGH);
+delay(10);
+tof2.begin();
+
+...
+
+// Configure both sensors
+tof1.setDistanceModeShort();
+tof2.setDistanceModeShort();
+tof1.setTimingBudgetInMs(50);
+tof2.setTimingBudgetInMs(50);</code></pre>
+
+            <div class="insight"><strong>7-bit vs 8-bit addressing:</strong> The SparkFun library expects 8-bit addresses (with the R/W bit), but <code>Wire</code> and I²C scanners report 7-bit addresses. Passing <code>0x30</code> to <code>setI2CAddress()</code> actually sets the sensor to 7-bit address <code>0x18</code>.<br><br>The correct call is <code>setI2CAddress(0x60)</code>, which places the sensor at 7-bit address <code>0x30</code>. The define <code>TOF1_ADDR_8BIT = (0x30 &lt;&lt; 1)</code> makes this explicit.</div>
+
+            <hr class="section-rule">
+
+            <!-- ==================== LAB TASKS ==================== -->
+            <h2 id="lab-tasks">Lab Tasks</h2>
+
+            <h3 id="tof-connections">ToF Sensor Connections</h3>
+            <img src="images/wiring-setup.png" alt="ToF sensor wiring" class="img-full">
+
+            <h3 id="i2c-discovery">I²C Device Discovery</h3>
+            <p>With both ToF sensors plugged in but at default addresses, the I²C scan only shows one instance of <code>0x29</code>; the Artemis has no way of distinguishing two devices with the same address (like having the same ID). The IMU appears at <code>0x69</code> as expected:</p>
+
+            <div class="serial-output"><span class="label">Scanning... (port: 0x10000E9C)</span>
+	0x29 detected
+	0x69 detected
+
+<span class="label">Scanning... (port: 0x10001190)</span>
+	No device detected!</div>
+
+            <p>After running the XSHUT address configuration code from the prelab, both sensors appear with unique addresses:</p>
+
+            <div class="serial-output"><span class="label">Scanning... (port: 0x10000E9C)</span>
+	0x29 detected
+	0x30 detected
+	0x69 detected
+
+<span class="label">Scanning... (port: 0x10001190)</span>
+	No device detected!</div>
+
+            <div class="insight"><strong>Two I²C ports:</strong> The Artemis Nano has two I²C buses. The QWIIC connector is on port <code>0x10000E9C</code>, which is why all our devices appear there. Port <code>0x10001190</code> is the second bus and remains empty.</div>
+
+            <hr class="section-rule">
+
+            <h3 id="accuracy-setup">Accuracy Test Setup</h3>
+            <p>The testing rig consisted of both ToF sensors taped to the top edge of the back of a laptop screen, with the IMU taped to the center of the rear of the screen. The laptop's adjustable screen angle provided a stable, repeatable test platform with easy pitch control.</p>
+            <img src="images/test-setup.png" alt="Test setup" class="img-full">
+
+            <h3 id="accuracy-mode">Accuracy Testing & Mode Selection</h3>
+            <p>To select the best sensor mode, accuracy was tested across seven distances in both Short and Long mode. The VL53L1X datasheet describes three modes, but the Arduino library only supports two: <strong>Short</strong> (up to 1.3m, robust to ambient light) and <strong>Long</strong> (up to 4m, sensitive to lighting conditions). Both were tested at a 50ms timing budget.</p>
+
+            <div class="img-grid">
+                <figure><img src="images/tof_accuracy_short_50ms.png" alt="Short mode accuracy"><figcaption>Short Mode — 50ms timing budget</figcaption></figure>
+                <figure><img src="images/tof_accuracy_long_50ms.png" alt="Long mode accuracy"><figcaption>Long Mode — 50ms timing budget</figcaption></figure>
+            </div>
+
+            <table class="data-table">
+                <thead><tr><th colspan="8" style="text-align:center;">Short Mode — 50ms Timing Budget</th></tr>
+                <tr><th>Distance</th><th>ToF1 Mean</th><th>ToF1 Err</th><th>ToF1 Std</th><th>ToF2 Mean</th><th>ToF2 Err</th><th>ToF2 Std</th></tr></thead>
+                <tbody>
+                    <tr><td>100mm</td><td>112.8mm</td><td class="warn">+12.8mm</td><td class="good">1.2mm</td><td>105.3mm</td><td class="warn">+5.3mm</td><td class="good">1.0mm</td></tr>
+                    <tr><td>200mm</td><td>210.7mm</td><td class="warn">+10.7mm</td><td class="good">1.3mm</td><td>204.7mm</td><td class="warn">+4.7mm</td><td class="good">1.5mm</td></tr>
+                    <tr><td>300mm</td><td>313.5mm</td><td class="warn">+13.5mm</td><td class="good">1.2mm</td><td>306.5mm</td><td class="warn">+6.5mm</td><td class="good">1.3mm</td></tr>
+                    <tr><td>500mm</td><td>514.1mm</td><td class="warn">+14.1mm</td><td class="good">1.7mm</td><td>505.8mm</td><td class="warn">+5.8mm</td><td class="good">1.9mm</td></tr>
+                    <tr><td>700mm</td><td>722.5mm</td><td class="warn">+22.5mm</td><td class="good">2.6mm</td><td>714.4mm</td><td class="warn">+14.4mm</td><td class="good">2.6mm</td></tr>
+                    <tr><td>850mm</td><td>859.5mm</td><td class="warn">+9.5mm</td><td class="good">1.4mm</td><td>853.1mm</td><td class="good">+3.1mm</td><td class="good">1.3mm</td></tr>
+                    <tr><td>1000mm</td><td>1019.7mm</td><td class="warn">+19.7mm</td><td class="good">1.7mm</td><td>1010.0mm</td><td class="warn">+10.0mm</td><td class="good">2.0mm</td></tr>
+                </tbody>
+            </table>
+
+            <table class="data-table">
+                <thead><tr><th colspan="8" style="text-align:center;">Long Mode — 50ms Timing Budget</th></tr>
+                <tr><th>Distance</th><th>ToF1 Mean</th><th>ToF1 Err</th><th>ToF1 Std</th><th>ToF2 Mean</th><th>ToF2 Err</th><th>ToF2 Std</th></tr></thead>
+                <tbody>
+                    <tr><td>100mm</td><td>109.5mm</td><td class="warn">+9.5mm</td><td class="good">1.4mm</td><td>101.0mm</td><td class="good">+1.0mm</td><td class="good">2.8mm</td></tr>
+                    <tr><td>200mm</td><td>208.1mm</td><td class="warn">+8.1mm</td><td class="good">2.4mm</td><td>197.5mm</td><td class="good">−2.5mm</td><td class="good">2.2mm</td></tr>
+                    <tr><td>300mm</td><td>309.3mm</td><td class="warn">+9.3mm</td><td class="good">2.3mm</td><td>302.8mm</td><td class="good">+2.8mm</td><td class="good">2.9mm</td></tr>
+                    <tr><td>500mm</td><td>507.3mm</td><td class="good">+7.3mm</td><td class="good">3.0mm</td><td>501.2mm</td><td class="good">+1.2mm</td><td class="good">3.1mm</td></tr>
+                    <tr><td>700mm</td><td>711.2mm</td><td class="warn">+11.2mm</td><td class="good">2.0mm</td><td>703.8mm</td><td class="good">+3.8mm</td><td class="good">2.6mm</td></tr>
+                    <tr><td>850mm</td><td>861.4mm</td><td class="warn">+11.4mm</td><td class="good">2.0mm</td><td>851.6mm</td><td class="good">+1.6mm</td><td class="good">2.8mm</td></tr>
+                    <tr><td>1000mm</td><td>1010.9mm</td><td class="warn">+10.9mm</td><td class="good">2.2mm</td><td>1000.3mm</td><td class="good">+0.3mm</td><td class="good">2.5mm</td></tr>
+                </tbody>
+            </table>
+
+            <img src="images/tof_error_comparison.png" alt="Error comparison Short vs Long" class="img-full">
+
+            <div class="insight"><strong>Surprising result:</strong> Long mode produced lower absolute error than Short mode across nearly all distances, though with consistently higher standard deviation (2–3mm vs 1–2mm). This is subject to human measurement error, lighting conditions, and wall texture. However, the trend was consistent across repeated trials.</div>
+
+            <div class="insight"><strong>Timing budget tradeoff:</strong> A 50ms timing budget gives 20 readings per second. Testing at 100ms produced tighter standard deviations (~0.7mm vs ~1.1mm) but halves the data rate to 10 Hz — insufficient for a fast-moving autonomous vehicle that needs responsive closed-loop control. That's why I chose 50ms as the right compromise.</div>
+
+            <div class="insight"><strong>Sensor-to-sensor offset:</strong> ToF 1 consistently reads 5–10mm higher than ToF 2 across all distances and both modes. This offset is consistent, indicating a per-sensor factory calibration difference rather than a mounting issue. The VL53L1X datasheet lists up to ±25mm typical offset — our sensors fall well within spec.</div>
+
+            <p>Based on these results, <strong>Long mode</strong> will be used going forward unless on-vehicle testing proves otherwise. These tests were conducted in a static, controlled environment and results may differ on a moving platform with varying surfaces and lighting.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="parallel-reading">Parallel Sensor Reading & Speed</h3>
+            <p>After configuring unique addresses and initializing all sensors, the boot sequence confirms everything is online:</p>
+
+            <div class="serial-output">========== BOOT ==========
+
+Sensor 1 online at 0x30
+Sensor 2 online at 0x29
+Both sensors ready!
+IMU online at 0x69
+Advertising BLE with MAC: c0:81:75:25:a:64</div>
+
+            <p>ToF readings use a <strong>non-blocking</strong> pattern; <code>checkForDataReady()</code> polls the sensor without waiting, and <code>-1</code> is stored when data isn't ready yet:</p>
+
+            <pre><code class="language-cpp">void readToF(int index) {
+    tof1_array[index] = -1;
+    tof2_array[index] = -1;
+
+    if (tof1.checkForDataReady()) {
+        tof1_array[index] = (int)tof1.getDistance();
+        tof1.clearInterrupt();
+        tof1.stopRanging();
+        tof1.startRanging();
+    }
+
+    if (tof2.checkForDataReady()) {
+        tof2_array[index] = (int)tof2.getDistance();
+        tof2.clearInterrupt();
+        tof2.stopRanging();
+        tof2.startRanging();
+    }
+}</code></pre>
+
+            <p>IMU data is collected in parallel using the same index, storing complementary filter pitch/roll and gyro-integrated yaw:</p>
+
+            <pre><code class="language-cpp">void readIMU(int index) {
+    float p, r, pf, rf;
+    if (getAngles(p, r, pf, rf)) {
+        updateGyro();
+        updateComplementary(p, r);
+
+        imu_time[index]    = (int)millis();
+        imu_pitch[index]   = p;
+        imu_roll[index]    = r;
+        ...
+        imu_pitch_c[index] = pitch_c;
+        imu_roll_c[index]  = roll_c;
+    }
+}</code></pre>
+
+            <p>Both functions are called every iteration of the main loop:</p>
+
+            <pre><code class="language-cpp">while (central.connected()) {
+    int index = array_index % MAX_ARRAY_SIZE;
+
+    time_array[index] = (int)millis();
+    temp_array[index] = (float)getTempDegF();
+
+    readToF(index);
+    readIMU(index);
+
+    array_index++;
+    write_data();
+    read_data();
+
+    delay(5);
+}</code></pre>
+
+            <div class="insight"><strong>Loop speed:</strong> The main loop includes a 5ms delay to maintain regular timestamp intervals regardless of whether sensor data is available. The actual limiting factor is the I²C read/store/reset cycle for both sensors, which results in 20–30ms between timestamps. Even in the worst case, this gives a refresh rate well above 30 Hz — more than sufficient for real-time control.</div>
+
+            <div class="insight"><strong>50ms fix:</strong> Initially, ToF readings arrived every 100ms instead of the expected 50ms timing budget. Explicitly calling <code>stopRanging()</code> followed by <code>startRanging()</code> after each reading resolved this, giving the sensor a clean reset and bringing the interval down to the configured 50ms.</div>
+
+            <hr class="section-rule">
+
+            <h3 id="data-collection">Combined Data Collection</h3>
+            <p>A new BLE command <code>GET_ALL_DATA</code> sends ToF and IMU data together in a single transfer. The circular buffer is read in two passes — from the current write position to the end, then from the start to the current position — ensuring data arrives in <strong>chronological order</strong></p>
+
+            <pre><code class="language-cpp">case GET_ALL_DATA:
+{
+    int current_pos = array_index % MAX_ARRAY_SIZE;
+
+    // Pass 1: older data (current_pos → end)
+    for (int i = current_pos; i < MAX_ARRAY_SIZE; i++) {
+        tx_estring_value.clear();
+        tx_estring_value.append("T:");   tx_estring_value.append(time_array[i]);
+        tx_estring_value.append("|T1:"); tx_estring_value.append(tof1_array[i]);
+        tx_estring_value.append("|T2:"); tx_estring_value.append(tof2_array[i]);
+        tx_estring_value.append("|P:");  tx_estring_value.append(imu_pitch_c[i]);
+        tx_estring_value.append("|R:");  tx_estring_value.append(imu_roll_c[i]);
+        tx_estring_value.append("|Y:");  tx_estring_value.append(imu_yaw_g[i]);
+        tx_characteristic_string.writeValue(tx_estring_value.c_str());
+    }
+
+    // Pass 2: newer data (start → current_pos)
+    for (int i = 0; i < current_pos; i++) { ... }  // Same format
+    break;
+}</code></pre>
+
+            <p>On the Python side, a BLE notification handler parses each incoming string and appends to local arrays:</p>
+
+            <pre><code class="language-python">timestamps, tof1_data, tof2_data = [], [], []
+imu_pitch, imu_roll, imu_yaw = [], [], []
+
+def handler(uuid, bytearray):
+    data = bytearray.decode('utf-8')
+    if "|T1:" not in data:
+        return
+
+    t  = int(data[data.find("T:")+2    : data.find("|T1:")])
+    t1 = int(data[data.find("|T1:")+4  : data.find("|T2:")])
+    t2 = int(data[data.find("|T2:")+4  : data.find("|P:")])
+    p  = float(data[data.find("|P:")+3  : data.find("|R:")])
+    r  = float(data[data.find("|R:")+3  : data.find("|Y:")])
+    y  = float(data[data.find("|Y:")+3  :])
+
+    timestamps.append(t); tof1_data.append(t1); tof2_data.append(t2)
+    imu_pitch.append(p);  imu_roll.append(r);   imu_yaw.append(y)</code></pre>
+
+            <p>Sample output from the combined data stream — ToF readings arrive every ~50ms (alternating with <code>-1</code> when the sensor hasn't finished), while IMU data updates every loop iteration:</p>
+
+            <div class="serial-output">T:154282 | T1:540 | T2:532 | P:-91.9 | R:146.8 | Y:58.8
+T:154310 | T1:-1  | T2:-1  | P:-91.7 | R:143.7 | Y:58.8
+T:154331 | T1:536 | T2:535 | P:-92.0 | R:144.5 | Y:58.9
+T:154359 | T1:-1  | T2:-1  | P:-92.1 | R:145.3 | Y:59.0
+T:154382 | T1:538 | T2:531 | P:-92.4 | R:146.7 | Y:58.9
+T:154414 | T1:-1  | T2:-1  | P:-92.4 | R:147.6 | Y:58.9
+T:154437 | T1:541 | T2:530 | P:-92.3 | R:145.7 | Y:59.0</div>
+
+            <hr class="section-rule">
+
+            <h3 id="tof-time-plot">ToF vs Time</h3>
+            <p>To demonstrate simultaneous data collection, the laptop was oscillated at a constant pace while recording. The ToF sensors capture the changing distance to the wall:</p>
+            <img src="images/tof_vs_time.png" alt="ToF vs Time" class="img-full">
+
+            <h3 id="imu-time-plot">IMU vs Time</h3>
+            <p>The IMU data was recorded simultaneously with the ToF data above. The complementary filter pitch and roll reflect the same physical oscillation, while gyro-integrated yaw captures any rotational component:</p>
+            <img src="images/imu_vs_time.png" alt="IMU vs Time" class="img-full">
+
+            <div class="insight"><strong>Correlated motion:</strong> The ToF distance oscillation and the IMU angle changes were recorded in the same collection run using <code>GET_ALL_DATA</code>. The synchronized timestamps confirm that both sensor types respond to the same physical movement, validating the combined data pipeline.</div>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ARCHITECTURE ==================== -->
+            <h2 id="architecture">Code Architecture</h2>
+            <p>As sensor count and command complexity grew, the original monolithic <code>.ino</code> file became unwieldy. The codebase was refactored into a modular multi-file architecture:</p>
+
+            <pre><code class="language-cpp">// ============== FILE KEY ============== //
+// config.h           → Max array size
+// tof.h / .cpp       → ToF setup, read, start, stop
+// imu.h / .cpp       → IMU setup, read, reset
+// commands.h / .cpp  → Command enum + handler
+// ble_setup.h / .cpp → BLE init, write_data, read_data
+// main.ino           → Setup, loop, globals</code></pre>
+
+            <p>Each sensor has its own header and implementation file with setup, read, and control functions. BLE initialization, command handling, and the enum are separated into their own files. Shared configuration (array sizes, timing budgets) lives in <code>config.h</code>.</p>
+
+            <p>The result: the main <code>.ino</code> file was reduced to <strong>96 lines</strong> — just includes, global declarations, <code>setup()</code>, and <code>loop()</code>. Adding new sensors or commands means editing the relevant module without touching the main file.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ACKNOWLEDGEMENTS ==================== -->
+            <h2 id="acknowledgements">Acknowledgements</h2>
+            <p>
+                Claude AI was used throughout this lab for assistance with intuition building,
+                debugging, and HTML writeup generation. Specifically, Claude was used to help explain I²C addressing
+                concepts, diagnose dual-sensor address conflicts, design the modular code architecture, and structure the lab report.
+            </p>
+
+        </main>
+    </div>
+
+    <script src="../scripts/lab-scripts.js"></script>
+    <script>hljs.highlightAll();</script>
+
+</body>
+</html>
