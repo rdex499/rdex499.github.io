@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 2: IMU - MAE 4190</title>
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        .data-table { width:100%; border-collapse:collapse; margin:20px 0; font-size:0.92rem; }
+        .data-table th { background:#161b22; color:#58a6ff; padding:10px 14px; text-align:left; font-weight:600; border-bottom:2px solid #30363d; }
+        .data-table td { padding:9px 14px; border-bottom:1px solid #21262d; color:#c9d1d9; }
+        .data-table tr:hover td { background:#161b22; }
+        .data-table .good { color:#3fb950; font-weight:600; }
+        .data-table .axis { color:#58a6ff; font-weight:600; }
+        .formula-block { background:#0d1117; border:1px solid #30363d; border-left:3px solid #58a6ff; border-radius:6px; padding:16px 20px; margin:18px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:1.0rem; color:#e6edf3; line-height:2.0; }
+        .formula-block .comment { color:#8b949e; font-size:0.85rem; }
+        .insight { background:#111820; border:1px solid #1f6feb; border-radius:8px; padding:14px 18px; margin:18px 0; color:#c9d1d9; font-size:0.93rem; line-height:1.6; }
+        .insight strong { color:#58a6ff; }
+        .img-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0; }
+        .img-grid figure { margin:0; }
+        .img-grid img { width:100%; border-radius:8px; border:1px solid #30363d; }
+        .img-grid figcaption { font-size:0.82rem; color:#8b949e; text-align:center; margin-top:6px; }
+        .img-full { width:100%; border-radius:8px; border:1px solid #30363d; margin:20px 0; }
+        .section-rule { border:none; border-top:1px solid #21262d; margin:36px 0; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">← Back to Dashboard</a>
+            <div>
+                <h1>Lab 2: IMU 📡</h1>
+                <p class="lab-meta">MAE 4190 • Spring 2026 • Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li>
+                    <a href="#setup" style="font-weight:600;color:#58a6ff;">Set Up the IMU</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#setup-connections">Connections</a></li>
+                        <li><a href="#setup-example">Example Code</a></li>
+                        <li><a href="#setup-ad0">AD0_VAL</a></li>
+                        <li><a href="#setup-data">Accel & Gyro Data</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#accelerometer" style="font-weight:600;color:#58a6ff;">Accelerometer</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#accel-pitch-roll">Pitch & Roll</a></li>
+                        <li><a href="#accel-accuracy">Accuracy</a></li>
+                        <li><a href="#accel-fft">Noise & FFT</a></li>
+                        <li><a href="#accel-lpf">Low Pass Filter</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#gyroscope" style="font-weight:600;color:#58a6ff;">Gyroscope</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#gyro-angles">Pitch, Roll & Yaw</a></li>
+                        <li><a href="#gyro-comp-filter">Complementary Filter</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#sample-data" style="font-weight:600;color:#58a6ff;">Sample Data</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#sample-speed">Sampling Speed</a></li>
+                        <li><a href="#sample-arrays">Timestamped Arrays</a></li>
+                        <li><a href="#sample-ble">5s BLE Transfer</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;"><a href="#stunt" style="font-weight:600;color:#58a6ff;">Record a Stunt</a></li>
+                <li style="margin-top:12px;"><a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a></li>
+            </ul>
+        </aside>
+
+        <main class="content">
+
+            <!-- ==================== SETUP ==================== -->
+            <h2 id="setup">Set Up the IMU</h2>
+
+            <h3 id="setup-connections">Artemis IMU Connections</h3>
+            <p>The ICM-20948 IMU was connected to the Artemis board via QWIIC connector (I2C). The <strong>SparkFun 9DOF IMU Breakout – ICM 20948</strong> Arduino library was installed through the Arduino Library Manager.</p>
+            <img src="images/imu-connections.png" alt="IMU Connections" class="img-full">
+
+            <h3 id="setup-example">Example Code Verification</h3>
+            <p><code>Example1_Basics</code> was uploaded to verify IMU initialization and AGMT data streaming over I2C.</p>
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;">
+                <source src="videos/imu-works.mp4" type="video/mp4">
+            </video>
+            <div class="callout success"><strong>Result:</strong> IMU successfully detected and streaming scaled AGMT data.</div>
+            <p>A 3-blink LED startup indicator was added — useful when running on battery without serial access.</p>
+            <pre><code class="language-cpp">for (int i = 0; i < 3; i++) {
+    digitalWrite(LED_BUILTIN, HIGH); delay(500);
+    digitalWrite(LED_BUILTIN, LOW);  delay(500);
+}</code></pre>
+
+            <h3 id="setup-ad0">AD0_VAL</h3>
+            <p><code>AD0_VAL</code> sets the LSB of the IMU's I2C address:</p>
+            <table class="data-table">
+                <thead><tr><th>AD0_VAL</th><th>I2C Address</th><th>Condition</th></tr></thead>
+                <tbody>
+                    <tr><td><code>1</code></td><td><code>0x69</code></td><td>ADR jumper <strong>not</strong> bridged — SparkFun default ✓</td></tr>
+                    <tr><td><code>0</code></td><td><code>0x68</code></td><td>ADR jumper bridged (also disables SPI on SparkFun breakout)</td></tr>
+                </tbody>
+            </table>
+            <p>The SparkFun breakout leaves the ADR jumper open by default, so <code>AD0_VAL = 1</code> is correct. Setting it to <code>0</code> caused a <em>Data Underflow</em> error on initialization — confirmed via Serial Monitor.</p>
+            <pre><code class="language-cpp">myICM.begin(Wire, 1); // AD0_VAL = 1 → address 0x69</code></pre>
+
+            <h3 id="setup-data">Acceleration & Gyroscope Data</h3>
+            <table class="data-table">
+                <thead><tr><th>Motion</th><th>Accelerometer</th><th>Gyroscope</th></tr></thead>
+                <tbody>
+                    <tr><td>Flat on table</td><td>az ≈ +1000 mg, ax/ay ≈ 0</td><td>All axes ≈ 0 dps</td></tr>
+                    <tr><td>Rotated 90° onto side</td><td>Gravity shifts to now-downward axis</td><td>Spike on rotation axis during motion, returns to 0</td></tr>
+                    <tr><td>Flipped upside down</td><td>az ≈ −1000 mg</td><td>Spike during flip, 0 when stationary</td></tr>
+                    <tr><td>Shaken/accelerated</td><td>Dynamic changes + noise on all axes</td><td>Angular velocity spikes on all axes</td></tr>
+                </tbody>
+            </table>
+            <p>The accelerometer measures the <em>projection of the gravity vector</em> onto each axis — giving absolute orientation but with noise. The gyroscope gives smooth angular velocity but integrating it introduces drift. This motivates the complementary filter.</p>
+            <div class="img-grid">
+                <figure><img src="images/imu-flat.png" alt="IMU flat"><figcaption>Flat: az ≈ +1000 mg, X/Y ≈ 0</figcaption></figure>
+                <figure><img src="images/imu-side.png" alt="IMU rotated 90°"><figcaption>Rotated 90°: gravity shifts to side axis</figcaption></figure>
+            </div>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ACCELEROMETER ==================== -->
+            <h2 id="accelerometer">Accelerometer</h2>
+
+            <h3 id="accel-pitch-roll">Pitch & Roll from Accelerometer</h3>
+            <p>When the IMU is tilted, gravity projects onto the X, Y, Z axes. Using trigonometry:</p>
+            <div class="formula-block">
+                pitch = atan2(a<sub>x</sub>, a<sub>z</sub>) × (180 / π)<br>
+                roll &nbsp;= atan2(a<sub>y</sub>, a<sub>z</sub>) × (180 / π)<br>
+                <span class="comment">// ax, ay, az in g's — divide raw mg output by 1000</span>
+            </div>
+            <p>Signs are negated to match the physical orientation of the SparkFun breakout:</p>
+            <pre><code class="language-cpp">#include &lt;math.h&gt;
+
+float pitch_lpf = 0.0, roll_lpf = 0.0;
+
+bool getAngles(float &pitch, float &roll, float &pitch_f, float &roll_f) {
+    if (myICM.dataReady()) {
+        myICM.getAGMT();
+        float ax = myICM.accX() / 1000.0;
+        float ay = myICM.accY() / 1000.0;
+        float az = myICM.accZ() / 1000.0;
+
+        pitch = -atan2(ax, az) * 180.0 / M_PI;
+        roll  = -atan2(ay, az) * 180.0 / M_PI;
+
+        pitch_lpf = 0.2 * pitch + 0.8 * pitch_lpf;
+        roll_lpf  = 0.2 * roll  + 0.8 * roll_lpf;
+        pitch_f = pitch_lpf;
+        roll_f  = roll_lpf;
+        return true;
+    }
+    return false;
+}</code></pre>
+            <p>Data was streamed over BLE and plotted across 5 orientations using the table surface and edges as 90° guides:</p>
+            <img src="images/imu_orientations.png" alt="IMU orientations" class="img-full">
+
+            <h3 id="accel-accuracy">Accuracy</h3>
+            <p>Mean pitch/roll computed over each capture window. Only the <em>relevant axis</em> is reported — when pitch approaches ±90°, a<sub>z</sub> → 0 and roll becomes geometrically undefined (<strong>gimbal lock</strong>).</p>
+            <table class="data-table">
+                <thead><tr><th>Orientation</th><th>Expected</th><th class="axis">Relevant Axis</th><th>Measured</th><th>Error</th></tr></thead>
+                <tbody>
+                    <tr><td>Flat on table</td><td>pitch=0°, roll=0°</td><td class="axis">Both</td><td>pitch=0.17°, roll=−1.18°</td><td class="good">&lt;1.2°</td></tr>
+                    <tr><td>Front edge down</td><td>pitch=+90°</td><td class="axis">Pitch</td><td>+88.10°</td><td class="good">−1.90°</td></tr>
+                    <tr><td>Back edge down</td><td>pitch=−90°</td><td class="axis">Pitch</td><td>−89.88°</td><td class="good">+0.12°</td></tr>
+                    <tr><td>Left edge down</td><td>roll=+90°</td><td class="axis">Roll</td><td>+86.87°</td><td class="good">−3.13°</td></tr>
+                    <tr><td>Right edge down</td><td>roll=−90°</td><td class="axis">Roll</td><td>−88.86°</td><td class="good">+1.14°</td></tr>
+                </tbody>
+            </table>
+            <div class="insight"><strong>Accuracy:</strong> All readings within ~3° of expected. Error sources: (1) table surface not perfectly level, (2) slight misalignment holding board against table edge. No two-point calibration was needed.</div>
+            <div class="insight"><strong>Gimbal Lock:</strong> When pitch approaches ±90°, a<sub>z</sub> → 0, making <code>atan2(ay, az)</code> numerically unstable — roll becomes meaningless. This is a fundamental Euler angle limitation, not a sensor defect.</div>
+
+            <hr class="section-rule">
+
+            <h3 id="accel-fft">Noise & Frequency Analysis</h3>
+            <p>Two datasets collected: board stationary (baseline) and table struck gently (induced vibration). FFT computed at ~61 Hz sampling rate:</p>
+            <pre><code class="language-python">def plot_fft(timestamps, signal, label="Pitch"):
+    ts  = np.array(timestamps)
+    sig = np.array(signal)
+    dt  = np.mean(np.diff(ts)) / 1000.0   # ms → s
+    fs  = 1.0 / dt                          # sampling freq Hz
+
+    fft_vals = np.fft.rfft(sig - np.mean(sig))  # remove DC offset
+    fft_mag  = np.abs(fft_vals) / len(sig)
+    freqs    = np.fft.rfftfreq(len(sig), d=dt)
+    # plot time domain and frequency domain...</code></pre>
+
+            <p><strong>Baseline noise (stationary board):</strong></p>
+            <div class="img-grid">
+                <figure><img src="images/fft_pitch.png" alt="Pitch FFT stationary"><figcaption>Pitch FFT — stationary</figcaption></figure>
+                <figure><img src="images/fft_roll.png" alt="Roll FFT stationary"><figcaption>Roll FFT — stationary</figcaption></figure>
+            </div>
+
+            <p><strong>Vibration data (table strikes):</strong></p>
+            <div class="img-grid">
+                <figure><img src="images/fft_pitch_vibration.png" alt="Pitch FFT vibration"><figcaption>Pitch FFT — table strikes</figcaption></figure>
+                <figure><img src="images/fft_roll_vibration.png" alt="Roll FFT vibration"><figcaption>Roll FFT — table strikes</figcaption></figure>
+            </div>
+
+            <div class="insight"><strong>Observations:</strong> Baseline noise is ~0.02–0.08 magnitude, flat/broadband across 0–30 Hz — characteristic white noise from the MEMS sensor. Table strikes (impulse inputs) raise magnitude to ~1.5–2.0 but remain broadband, since an ideal impulse has a flat frequency spectrum. No dominant noise frequency peak exists in either case.</div>
+            <div class="insight"><strong>Cutoff Frequency — 5 Hz:</strong> Intentional tilt changes occur below ~1–2 Hz. Noise is broadband above that. 5 Hz preserves real motion while attenuating sensor noise. Going lower (1 Hz) makes the filter too sluggish; going higher (20 Hz) passes most noise through.</div>
+
+            <hr class="section-rule">
+
+            <h3 id="accel-lpf">Low Pass Filter</h3>
+            <p>A first-order IIR low pass filter was implemented on the Artemis:</p>
+            <div class="formula-block">
+                x<sub>f</sub>[n] = α · x[n] + (1 − α) · x<sub>f</sub>[n−1]<br><br>
+                <span class="comment">// α derived from cutoff frequency and sampling rate:</span><br>
+                α = T / (T + RC)<br><br>
+                T &nbsp;= 1 / rate &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// sampling period (s)</span><br>
+                RC = 1 / (2π · f<sub>c</sub>) &nbsp;&nbsp;&nbsp;<span class="comment">// time constant from cutoff frequency</span><br><br>
+                <span class="comment">// At f_s = 61.3 Hz, f_c = 5 Hz:</span><br>
+                T &nbsp;= 1/61.3 ≈ 0.0163 s<br>
+                RC = 1/(2π×5) ≈ 0.0318 s<br>
+                α &nbsp;= 0.0163 / (0.0163 + 0.0318) ≈ 0.34<br><br>
+                <span class="comment">// α = 0.2 used — slightly more aggressive smoothing than theoretical</span>
+            </div>
+            <pre><code class="language-cpp">const float alpha = 0.2;
+
+// Inside getAngles():
+pitch_lpf = alpha * pitch + (1 - alpha) * pitch_lpf;
+roll_lpf  = alpha * roll  + (1 - alpha) * roll_lpf;</code></pre>
+            <img src="images/lpf_comparison.png" alt="Raw vs low pass filtered" class="img-full">
+            <div class="insight"><strong>Result:</strong> The filtered signal cleanly tracks mean orientation while suppressing ±0.5° high-frequency noise. The filter introduces a small lag proportional to 1/α — acceptable for slow tilt estimation. Higher α = less lag but more noise; lower α = smoother but slower response.</div>
+
+            <hr class="section-rule">
+
+            <!-- ==================== GYROSCOPE ==================== -->
+            <h2 id="gyroscope">Gyroscope</h2>
+
+            <h3 id="gyro-angles">Pitch, Roll & Yaw</h3>
+            <p>The gyroscope measures angular velocity (deg/s). Angles are obtained by integrating over time:</p>
+            <div class="formula-block">
+                pitch_g += ω<sub>x</sub> · dt<br>
+                roll_g &nbsp;+= ω<sub>y</sub> · dt<br>
+                yaw_g &nbsp;&nbsp;+= ω<sub>z</sub> · dt<br><br>
+                <span class="comment">// dt from micros() delta between samples</span>
+            </div>
+            <pre><code class="language-cpp">float pitch_g = 0.0, roll_g = 0.0, yaw_g = 0.0;
+unsigned long last_time_g = 0;
+
+void updateGyro() {
+    unsigned long now = micros();
+    float dt = (now - last_time_g) / 1000000.0;
+    last_time_g = now;
+
+    if (myICM.dataReady()) {
+        myICM.getAGMT();
+        pitch_g += myICM.gyrX() * dt;
+        roll_g  += myICM.gyrY() * dt;
+        yaw_g   += myICM.gyrZ() * dt;
+    }
+}</code></pre>
+            <img src="images/gyro_vs_accel.png" alt="Gyro vs accelerometer" class="img-full">
+            <div class="insight"><strong>Gyro vs Accelerometer:</strong> The gyroscope integrates continuously with no angular bounds, while <code>atan2</code> constrains the accelerometer to ±180°. The gyro is smooth but accumulates drift — visible in the yaw plot creeping even when stationary. The accelerometer is bounded and drift-free but noisy, and cannot measure yaw at all (gravity has no yaw component).</div>
+            <div class="insight"><strong>Drift:</strong> With the board stationary, gyro yaw drifted ~1.5° over 7 seconds (~0.21°/s). This accumulates unboundedly — after 60s the error exceeds 12°, making the gyro alone unsuitable for long-term orientation estimation.</div>
+
+            <h3 id="gyro-comp-filter">Complementary Filter</h3>
+            <p>Fuses both sensors — gyroscope for short-term smoothness, accelerometer for long-term drift correction:</p>
+            <div class="formula-block">
+                θ[n] = α · (θ[n−1] + ω · dt) + (1 − α) · θ<sub>accel</sub><br><br>
+                <span class="comment">// α → 1: trust gyro (smooth, slight drift)</span><br>
+                <span class="comment">// α → 0: trust accel (noisy, no drift)</span><br>
+                <span class="comment">// α = 0.98: standard starting point</span>
+            </div>
+            <pre><code class="language-cpp">float pitch_c = 0.0, roll_c = 0.0;
+unsigned long last_time_c = 0;
+
+void updateComplementary(float pitch_a, float roll_a) {
+    unsigned long now = micros();
+    float dt = (now - last_time_c) / 1000000.0;
+    last_time_c = now;
+
+    pitch_c = 0.98 * (pitch_c + myICM.gyrX() * dt) + 0.02 * pitch_a;
+    roll_c  = 0.98 * (roll_c  + myICM.gyrY() * dt) + 0.02 * roll_a;
+}
+
+// Reset on every new BLE connection to prevent drift accumulation:
+pitch_g = 0.0; roll_g = 0.0; yaw_g = 0.0;
+pitch_c = 0.0; roll_c = 0.0;
+last_time_g = micros(); last_time_c = micros();</code></pre>
+            <img src="images/complementary_filter.png" alt="Complementary filter" class="img-full">
+            <div class="insight"><strong>Result:</strong> The complementary filter tracks the accelerometer's mean angle while rejecting high-frequency noise. At α = 0.98, the gyroscope handles short-term dynamics while the 2% accelerometer contribution prevents long-term drift. The filter is resistant to quick vibrations and does not drift over time.</div>
+
+            <hr class="section-rule">
+
+            <!-- ==================== SAMPLE DATA ==================== -->
+            <h2 id="sample-data">Sample Data</h2>
+
+            <h3 id="sample-speed">Speed of Sampling</h3>
+            <p>To measure loop speed, all <code>Serial.print</code> statements were commented out and all <code>delay()</code> calls removed. A loop counter and timestamp were used to compute the effective sampling rate:</p>
+            <pre><code class="language-cpp">// Measure loop rate: count iterations over 1 second
+unsigned long start = millis();
+int loop_count = 0;
+
+while (millis() - start &lt; 1000) {
+    float p, r, pf, rf;
+    if (getAngles(p, r, pf, rf)) {
+        loop_count++;
+    }
+}
+Serial.print("IMU samples per second: ");
+Serial.println(loop_count);</code></pre>
+            <div class="insight"><strong>Result:</strong> The Artemis main loop runs significantly faster than the IMU produces new data. The ICM-20948 outputs new samples at approximately 61 Hz by default. The <code>dataReady()</code> check ensures we only store a sample when the IMU has fresh data, so the effective storage rate matches the IMU output rate rather than the loop rate. No samples are missed and no duplicates are stored.</div>
+            <div class="insight"><strong>Data type justification:</strong> Floats are used for pitch, roll, and yaw since angular values require decimal precision. Integers are used for timestamps since <code>millis()</code> returns whole milliseconds and use half the memory of floats. At 300 samples with 9 floats and 1 integer per sample, total memory usage is approximately 300 x (9 x 4 + 4) = 12 KB, well within the Artemis 384 KB RAM.</div>
+
+            <h3 id="sample-arrays">Timestamped IMU Data in Arrays</h3>
+            <p>Separate arrays are used for accelerometer, gyroscope, and complementary filter data. This avoids packing everything into one large struct and makes it easy to send only the data needed per command. All arrays share the same timestamp array since they are collected in lockstep.</p>
+            <pre><code class="language-cpp">#define IMU_ARRAY_SIZE 300
+ 
+int   imu_time[IMU_ARRAY_SIZE];
+float imu_pitch[IMU_ARRAY_SIZE],   imu_roll[IMU_ARRAY_SIZE];
+float imu_pitch_f[IMU_ARRAY_SIZE], imu_roll_f[IMU_ARRAY_SIZE];
+float imu_pitch_g[IMU_ARRAY_SIZE], imu_roll_g[IMU_ARRAY_SIZE], imu_yaw_g[IMU_ARRAY_SIZE];
+float imu_pitch_c[IMU_ARRAY_SIZE], imu_roll_c[IMU_ARRAY_SIZE];
+int   imu_index = 0;
+
+// Non-blocking collection in loop():
+float p, r, pf, rf;
+if (getAngles(p, r, pf, rf)) {
+    updateGyro();
+    updateComplementary(p, r);
+    int idx = imu_index % IMU_ARRAY_SIZE;
+    imu_time[idx]    = (int)millis();
+    imu_pitch[idx]   = p;       imu_roll[idx]    = r;
+    imu_pitch_f[idx] = pf;      imu_roll_f[idx]  = rf;
+    imu_pitch_g[idx] = pitch_g; imu_roll_g[idx]  = roll_g; imu_yaw_g[idx] = yaw_g;
+    imu_pitch_c[idx] = pitch_c; imu_roll_c[idx]  = roll_c;
+    imu_index++;
+}</code></pre>
+
+            <h3 id="sample-ble">5s of IMU Data over Bluetooth</h3>
+            <p>At 61 Hz, 300 samples covers approximately 5 seconds of data. The circular buffer always holds the most recent 300 samples. On command, the Artemis streams all 300 entries in chronological order over BLE:</p>
+            <pre><code class="language-cpp">// GET_IMU_DATA sends all fields per sample in one string:
+// Format: T:xxx|P:x.xx|R:x.xx|PG:x.xx|RG:x.xx|YG:x.xx|PC:x.xx|RC:x.xx
+case GET_IMU_DATA:
+{
+    int current_pos = imu_index % IMU_ARRAY_SIZE;
+    for (int i = current_pos; i &lt; IMU_ARRAY_SIZE; i++) { /* send old half */ }
+    for (int i = 0; i &lt; current_pos; i++)               { /* send new half */ }
+    break;
+}</code></pre>
+            <pre><code class="language-python">def handler_imu(uuid, bytearray):
+    s = bytearray.decode('utf-8')
+    t  = int(float(s[s.find("T:")+2   : s.find("|P:")]))
+    p  = float(s[s.find("|P:")+3      : s.find("|R:")])
+    r  = float(s[s.find("|R:")+3      : s.find("|PG:")])
+    pg = float(s[s.find("|PG:")+4     : s.find("|RG:")])
+    rg = float(s[s.find("|RG:")+4     : s.find("|YG:")])
+    yg = float(s[s.find("|YG:")+4     : s.find("|PC:")])
+    pc = float(s[s.find("|PC:")+4     : s.find("|RC:")])
+    rc = float(s[s.find("|RC:")+4     :])
+    imu_timestamps.append(t)
+    imu_pitch.append(p);    imu_roll.append(r)
+    imu_pitch_g.append(pg); imu_roll_g.append(rg); imu_yaw_g.append(yg)
+    imu_pitch_c.append(pc); imu_roll_c.append(rc)
+
+ble.connect()
+ble.start_notify(ble.uuid['RX_STRING'], handler_imu)
+time.sleep(3)
+ble.send_command(CMD.GET_IMU_DATA, "")
+time.sleep(8)
+ble.stop_notify(ble.uuid['RX_STRING'])
+print(f"Received {len(imu_timestamps)} samples spanning "
+      f"{(imu_timestamps[-1] - imu_timestamps[0]) / 1000:.1f}s")</code></pre>
+            <div class="callout success"><strong>Result:</strong> 300 samples received, spanning approximately 5 seconds of timestamped IMU data transferred over BLE. All accelerometer, gyroscope, and complementary filter fields received correctly.</div>
+
+            <!-- ==================== STUNT ==================== -->
+            <h2 id="stunt">Record a Stunt</h2>
+            <p>The RC car was driven to observe its handling and dynamics before attaching the IMU for future labs. The car is fast, lightweight, and tends to flip on sharp turns at high speed. Turning radius is tight and it responds quickly to input.</p>
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/car-stunt.mp4" type="video/mp4">
+            </video>
+
+            <hr class="section-rule">
+
+            <h2 id="acknowledgements">Acknowledgements</h2>
+            <p>
+                Claude AI was used throughout this lab for assistance with intuition building,
+                debugging, and HTML writeup generation. Specifically, Claude was used to help explain sensor fusion
+                concepts, diagnose sensor drifting and allignment issues, and structure the lab report.
+            </p>
+
+        </main>
+    </div>
+
+    <script src="../scripts/lab-scripts.js"></script>
+    <script>hljs.highlightAll();</script>
+
+
+</body>
+</html>
