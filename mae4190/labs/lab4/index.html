@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 4: Motors and Open Loop Control - MAE 4190</title>
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        .data-table { width:100%; border-collapse:collapse; margin:20px 0; font-size:0.92rem; }
+        .data-table th { background:#161b22; color:#58a6ff; padding:10px 14px; text-align:left; font-weight:600; border-bottom:2px solid #30363d; }
+        .data-table td { padding:9px 14px; border-bottom:1px solid #21262d; color:#c9d1d9; }
+        .data-table tr:hover td { background:#161b22; }
+        .data-table .good { color:#3fb950; font-weight:600; }
+        .data-table .warn { color:#d29922; font-weight:600; }
+        .data-table .axis { color:#58a6ff; font-weight:600; }
+        .formula-block { background:#0d1117; border:1px solid #30363d; border-left:3px solid #58a6ff; border-radius:6px; padding:16px 20px; margin:18px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:1.0rem; color:#e6edf3; line-height:2.0; }
+        .formula-block .comment { color:#8b949e; font-size:0.85rem; }
+        .insight { background:#111820; border:1px solid #1f6feb; border-radius:8px; padding:14px 18px; margin:18px 0; color:#c9d1d9; font-size:0.93rem; line-height:1.6; }
+        .insight strong { color:#58a6ff; }
+        .img-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0; }
+        .img-grid figure { margin:0; }
+        .img-grid img { width:100%; border-radius:8px; border:1px solid #30363d; }
+        .img-grid figcaption { font-size:0.82rem; color:#8b949e; text-align:center; margin-top:6px; }
+        .img-full { width:100%; border-radius:8px; border:1px solid #30363d; margin:20px 0; }
+        .section-rule { border:none; border-top:1px solid #21262d; margin:36px 0; }
+        .serial-output { background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:14px 18px; margin:16px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:0.88rem; color:#7ee787; line-height:1.8; white-space:pre-wrap; }
+        .serial-output .label { color:#8b949e; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">← Back to Dashboard</a>
+            <div>
+                <h1>Lab 4: Motors and Open Loop Control 🛠️</h1>
+                <p class="lab-meta">MAE 4190 • Spring 2026 • Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li>
+                    <a href="#prelab" style="font-weight:600;color:#58a6ff;">Prelab</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#prelab-wiring">Wiring Plan</a></li>
+                        <li><a href="#prelab-battery">Battery Discussion</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#lab-tasks" style="font-weight:600;color:#58a6ff;">Lab Tasks</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#power-supply">Power Supply & Oscilloscope</a></li>
+                        <li><a href="#single-motor">Single Motor Test</a></li>
+                        <li><a href="#both-motors">Both Motors & Battery Power</a></li>
+                        <li><a href="#assembly">Car Assembly</a></li>
+                        <li><a href="#ble-commands">BLE Motor Commands</a></li>
+                        <li><a href="#min-pwm">Lower Limit PWM</a></li>
+                        <li><a href="#calibration">Calibration Factor</a></li>
+                        <li><a href="#open-loop">Open Loop Demo</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;"><a href="#architecture" style="font-weight:600;color:#58a6ff;">Code Architecture</a></li>
+                <li style="margin-top:12px;"><a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a></li>
+            </ul>
+        </aside>
+
+        <main class="content">
+
+            <!-- ==================== PRELAB ==================== -->
+            <h2 id="prelab">Prelab</h2>
+
+            <h3 id="prelab-wiring">Wiring Plan</h3>
+            <p>Each motor is driven by a dedicated DRV8833 dual motor driver with both channels <strong>parallel-coupled</strong>. On each driver, AIN1 is tied to BIN1 and AIN2 is tied to BIN2 on the input side, while AOUT1 is tied to BOUT1 and AOUT2 is tied to BOUT2 on the output side. A single DRV8833 has two independent H-bridge channels rated at ~1.5A each; by combining both channels to drive one motor, the driver can supply up to ~3A without overheating the chip. This is safe because both channels share the same IC and internal clock, so their switching is perfectly synchronized. Doing this with two separate driver chips would risk shoot-through current from slight timing differences.</p>
+
+            <p>The motor drivers require <strong>PWM-capable pins</strong> for speed control via <code>analogWrite()</code>. Not all pins on the Artemis Nano support PWM output, so pin selection was constrained by this requirement. With GPIO pins 5 and 6 already occupied by ToF XSHUT lines (which only need basic digital I/O), the motor drivers were assigned to pins <strong>A2/A3</strong> (right motor) and <strong>A14/A15</strong> (left motor). These are on opposite sides of the board, keeping wiring clean inside the chassis.</p>
+
+            <img src="images/wiring-diagram.png" alt="Motor driver wiring diagram" class="img-full">
+
+            <hr class="section-rule">
+
+            <h3 id="prelab-battery">Battery Discussion</h3>
+            <p>The motors are powered by an <strong>850mAh</strong> LiPo connected directly to both motor drivers, while the Artemis runs off a separate <strong>750mAh</strong> LiPo. The higher-capacity battery goes to the motors because they draw significantly more current, while the microcontroller's milliamp-level consumption is easily handled by the smaller cell.</p>
+
+            <p>Separating the power sources is critical for several reasons:</p>
+            <ul>
+                <li><strong>Brownout protection:</strong> Large motor current spikes cause voltage sags that can reset the Artemis mid-operation.</li>
+                <li><strong>Noise isolation:</strong> DC motors generate high-frequency electromagnetic noise from brush arcing, which couples into nearby signal lines and corrupts sensor readings or drops BLE connections.</li>
+                <li><strong>Battery longevity:</strong> Decoupling the supplies means the Artemis battery barely drains during a session while the motor battery handles all the heavy lifting.</li>
+            </ul>
+
+            <hr class="section-rule">
+
+            <!-- ==================== LAB TASKS ==================== -->
+            <h2 id="lab-tasks">Lab Tasks</h2>
+
+            <h3 id="power-supply">Power Supply & Oscilloscope</h3>
+            <p>Rather than testing each component in isolation, I soldered one motor driver fully integrated into the car and left the second driver unsoldered as a fallback in case anything went wrong. The battery terminal was split and soldered to feed both drivers. With one side fully wired, the car was brought to the lab bench for power supply and oscilloscope testing.</p>
+
+            <p>The external supply was set to <strong>3.7V</strong> with a <strong>2A current limit</strong>. The voltage matches the LiPo nominal voltage for realistic testing, and the current limit protects against accidental shorts or stalls during debugging.</p>
+
+            <img src="images/power-supply-setup.png" alt="Power supply and oscilloscope setup" class="img-full">
+
+            <p>To verify that <code>analogWrite()</code> on the Artemis correctly drives the motor controller, the oscilloscope was hooked up to pin A14 and GND. Three different PWM values were tested with 2-second intervals:</p>
+
+            <pre><code class="language-cpp">setMotorA(64);   // ~25% duty cycle
+delay(2000);
+setMotorA(128);  // ~50% duty cycle
+delay(2000);
+setMotorA(200);  // ~78% duty cycle
+delay(2000);
+stopMotors();</code></pre>
+
+            <p>The oscilloscope video shows three distinct duty cycles at the motor driver output, confirming the full signal chain works: Artemis PWM to driver input to amplified output at supply voltage.</p>
+
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/oscilloscope.mp4" type="video/mp4">
+            </video>
+
+            <hr class="section-rule">
+
+            <h3 id="single-motor">Single Motor Test</h3>
+            <p>With the motor connected to the driver and the car on its side (wheels elevated), both directions were tested:</p>
+
+            <pre><code class="language-cpp">// Forward direction
+setMotorA(100);
+delay(2000);
+brakeMotors();
+delay(500);
+
+// Reverse direction
+setMotorA(-100);
+delay(2000);
+brakeMotors();</code></pre>
+
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/single-motor.mp4" type="video/mp4">
+            </video>
+
+            <div class="insight"><strong>Coast vs. brake:</strong> Setting both input pins LOW (<code>stopMotors()</code>) lets the motor coast, with the wheels spinning down gradually. Setting both pins HIGH (<code>brakeMotors()</code>) shorts the motor terminals through the H-bridge, causing back-EMF to actively resist rotation. Braking is significantly snappier and more predictable, which matters for precise open-loop maneuvers.</div>
+
+            <hr class="section-rule">
+
+            <h3 id="both-motors">Both Motors & Battery Power</h3>
+            <p>After confirming the first motor worked, the second motor driver was soldered in and connected to pins A2/A3. The external power supply was swapped out for the 850mAh battery, and both motors were tested simultaneously. The turning videos below demonstrate both wheels spinning in opposite directions under battery power:</p>
+
+            <div class="img-grid">
+                <figure>
+                    <video controls style="width:100%;border-radius:8px;border:1px solid #30363d;">
+                        <source src="videos/turning-wood.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>On-axis turn on wood (PWM 155)</figcaption>
+                </figure>
+                <figure>
+                    <video controls style="width:100%;border-radius:8px;border:1px solid #30363d;">
+                        <source src="videos/turning-carpet.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>On-axis turn on carpet (PWM 220)</figcaption>
+                </figure>
+            </div>
+
+            <div class="insight"><strong>BLE disconnects under load:</strong> During aggressive on-axis turns on carpet (~220 PWM, near stall), the Artemis repeatedly lost its BLE connection. The motors were drawing near-peak current, generating enough electromagnetic noise to interfere with the radio despite separate batteries. Interestingly, after repeated use, the problem went away on its own. The motor brushes likely broke in over time, smoothing the commutator contact and reducing electrical arcing. Keeping motor wires short, twisted, and routed away from the I²C bus also helps mitigate coupling.</div>
+
+            <hr class="section-rule">
+
+            <h3 id="assembly">Car Assembly</h3>
+            <p>The factory control PCB was removed by desoldering the motor leads and battery connector, preserving the full wire length for reuse. Chassis LEDs were disconnected. All components were secured inside the car with double-sided tape, including the batteries and Artemis board. Nothing protrudes beyond the wheel line so the car can safely flip.</p>
+
+            <img src="images/car-assembly.png" alt="Assembled car with all components labeled" class="img-full">
+
+            <p>The IMU was positioned away from the motor drivers to minimize electromagnetic interference on the accelerometer and gyroscope readings. Motor wires were twisted in pairs to reduce radiated EMI and kept short for both noise and packaging reasons. All connections to the motor drivers were directly soldered rather than jumpered, as the vibrations and accelerations during driving would shake loose any friction-fit connections.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="ble-commands">BLE Motor Commands</h3>
+            <p>With everything integrated inside the chassis, plugging in a USB cable for every code tweak was impractical. To enable wireless testing from a VSCode notebook, new BLE commands were added for motor control:</p>
+
+            <table class="data-table">
+                <thead><tr><th>Command</th><th>ID</th><th>Arguments</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>SET_MOTORS</code></td><td>12</td><td><code>leftPWM:rightPWM</code></td><td>Raw per-motor control. Runs until <code>STOP</code> is sent.</td></tr>
+                    <tr><td><code>DRIVE_TIMED</code></td><td>13</td><td><code>speed:duration_ms</code></td><td>Calibrated forward drive for a set duration, then brakes.</td></tr>
+                    <tr><td><code>TURN_TIMED</code></td><td>14</td><td><code>speed:duration_ms</code></td><td>Calibrated turn for a set duration, then brakes.</td></tr>
+                    <tr><td><code>STOP</code></td><td>15</td><td>none</td><td>Immediate brake.</td></tr>
+                </tbody>
+            </table>
+
+            <p><code>SET_MOTORS</code> is useful for interactive testing and finding calibration values since each motor can be controlled independently. <code>DRIVE_TIMED</code> and <code>TURN_TIMED</code> apply a fixed calibration factor to balance the motors, then run for the specified duration before braking. All PWM tuning, calibration, and open-loop testing was done wirelessly without ever unplugging the car.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="min-pwm">Lower Limit PWM</h3>
+            <p>Using the BLE commands, minimum PWM values were explored for different conditions:</p>
+
+            <table class="data-table">
+                <thead><tr><th>Condition</th><th>Surface</th><th>Min PWM</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td>Forward (from rest)</td><td>Tile</td><td class="good">50</td><td>40 moves but with significant startup delay</td></tr>
+                    <tr><td>Forward (already moving)</td><td>Tile</td><td class="good">40</td><td>Static friction > kinetic friction</td></tr>
+                    <tr><td>On-axis turn</td><td>Wood</td><td class="warn">155</td><td>Both wheels fighting surface friction</td></tr>
+                    <tr><td>On-axis turn</td><td>Carpet</td><td class="warn">220</td><td>Caused BLE disconnects at high current</td></tr>
+                </tbody>
+            </table>
+
+            <p>On-axis turns require dramatically more PWM than straight-line driving. The car has no differential, so each side is driven by a single motor: both left wheels rotate one direction while both right wheels rotate the opposite direction. This causes wheel scrubbing against the surface, which is highly friction-dependent. On carpet, the required PWM nearly doubles compared to wood.</p>
+
+            <div class="insight"><strong>Battery voltage sag:</strong> These minimum PWM values are not constant. They depend heavily on battery charge state: at full charge (4.2V), the same PWM produces noticeably more torque than at 3.6V. During repeated high-current tests (especially stall-like turns), a PWM value that reliably turned the car would fail after several consecutive runs, then work again after letting the battery rest for a few seconds. The 850mAh cell's high internal resistance causes significant voltage droop under sustained heavy draw. The battery needs time to recover to its nominal voltage between demanding maneuvers.</div>
+
+            <hr class="section-rule">
+
+            <h3 id="calibration">Calibration Factor</h3>
+            <p>The two motors do not spin at the same rate at identical PWM values. Starting with <code>SET_MOTORS, "80|80"</code>, the car veered to the right, indicating one motor was stronger than the other. After iterative adjustment, <code>"90|80"</code> produced a straight line.</p>
+
+            <p>This translates to a calibration factor of <strong>0.889</strong> (80/90), applied automatically in the calibrated drive functions:</p>
+
+            <pre><code class="language-cpp">#define MOTOR_CAL_FACTOR 0.889
+
+void driveForward(int speed) {
+    setMotorA(speed);
+    setMotorB((int)(speed * MOTOR_CAL_FACTOR));
+}</code></pre>
+
+            <p>For testing, a quick round-trip command avoided having to chase the car down the hallway:</p>
+
+            <pre><code class="language-python"># Forward and back, no fetching required
+ble.send_command(CMD.SET_MOTORS, "-90|-80")
+time.sleep(2)
+ble.send_command(CMD.STOP, "")
+time.sleep(1)
+ble.send_command(CMD.SET_MOTORS, "90|-80")
+time.sleep(2)
+ble.send_command(CMD.STOP, "")</code></pre>
+
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/straight-line.mp4" type="video/mp4">
+            </video>
+
+            <div class="insight"><strong>Open-loop limitations:</strong> Even with a calibration factor, straight-line tracking is not perfectly repeatable. Battery voltage, surface texture, and minor debris all affect the trajectory. The calibration compensates for the static motor-to-motor difference but cannot adapt to dynamic environmental changes.</div>
+
+            <hr class="section-rule">
+
+            <h3 id="open-loop">Open Loop Demo</h3>
+            <p>For the final demonstration, turns were calibrated to produce approximately 90° rotations on the lab floor, a low-friction tile surface ideal for clean turns with minimal wheel scrubbing. After dialing in the turn duration and PWM, a simple loop executes a square pattern:</p>
+
+            <pre><code class="language-python">import time
+ble.connect()
+
+for i in range(4):
+    ble.send_command(CMD.DRIVE_TIMED, "210|250")
+    time.sleep(1)
+    ble.send_command(CMD.TURN_TIMED, "-250|210")
+    time.sleep(1)</code></pre>
+
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/open-loop.mp4" type="video/mp4">
+            </video>
+
+            <p>The square looks surprisingly clean, but this required very specific PWM values and timing tuned manually for these exact conditions. Even a slight change in PWM throws off the turns, and the straight-line calibration ratio only holds at the specific speed it was tuned for. The whole system is brittle: it works in one set of conditions and falls apart the moment anything changes. This is the fundamental limitation of open-loop control, and why PID control using the car's IMU to self-adjust in real time is the long-term goal.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ARCHITECTURE ==================== -->
+            <h2 id="architecture">Code Architecture</h2>
+            <p>Lab 4 adds a <code>motor.h</code> / <code>motor.cpp</code> module to the existing multi-file architecture, following the same pattern as the sensor modules with pin definitions in the header and a <code>setupMotors()</code> function called from <code>main.ino</code>:</p>
+
+            <pre><code class="language-cpp">// ============== FILE KEY ============== //
+// config.h           → Max array size
+// tof.h / .cpp       → ToF setup, read, start, stop
+// imu.h / .cpp       → IMU setup, read, reset
+// motor.h / .cpp     → Motor setup, drive, stop, brake
+// commands.h / .cpp  → Command enum + handler
+// ble_setup.h / .cpp → BLE init, write_data, read_data
+// main.ino           → Setup, loop, globals</code></pre>
+
+            <p>Four new BLE commands (<code>SET_MOTORS</code>, <code>DRIVE_TIMED</code>, <code>TURN_TIMED</code>, <code>STOP</code>) were added to <code>commands.h</code> for wireless motor control and debugging. The main loop also calls <code>stopMotors()</code> on BLE disconnect as a safety catch, ensuring the car brakes immediately if the connection drops rather than continuing to drive.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ACKNOWLEDGEMENTS ==================== -->
+            <h2 id="acknowledgements">Acknowledgements</h2>
+            <p>
+                Claude AI was used throughout this lab for assistance with understanding motor driver operation and parallel coupling,
+                designing the motor control code module, debugging BLE-triggered motor commands, and structuring the lab report.
+                Soldering, wiring, testing, calibration, and all data collection were done by me.
+            </p>
+
+        </main>
+    </div>
+
+    <script src="../scripts/lab-scripts.js"></script>
+    <script>hljs.highlightAll();</script>
+
+</body>
+</html>
