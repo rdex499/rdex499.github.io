@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 5: Linear PID and Linear Interpolation - MAE 4190</title>
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        .data-table { width:100%; border-collapse:collapse; margin:20px 0; font-size:0.92rem; }
+        .data-table th { background:#161b22; color:#58a6ff; padding:10px 14px; text-align:left; font-weight:600; border-bottom:2px solid #30363d; }
+        .data-table td { padding:9px 14px; border-bottom:1px solid #21262d; color:#c9d1d9; }
+        .data-table tr:hover td { background:#161b22; }
+        .data-table .good { color:#3fb950; font-weight:600; }
+        .data-table .warn { color:#d29922; font-weight:600; }
+        .formula-block { background:#0d1117; border:1px solid #30363d; border-left:3px solid #58a6ff; border-radius:6px; padding:16px 20px; margin:18px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:1.0rem; color:#e6edf3; line-height:2.0; }
+        .formula-block .comment { color:#8b949e; font-size:0.85rem; }
+        .insight { background:#111820; border:1px solid #1f6feb; border-radius:8px; padding:14px 18px; margin:18px 0; color:#c9d1d9; font-size:0.93rem; line-height:1.6; }
+        .insight strong { color:#58a6ff; }
+        .img-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0; }
+        .img-grid figure { margin:0; }
+        .img-grid img { width:100%; border-radius:8px; border:1px solid #30363d; }
+        .img-grid figcaption { font-size:0.82rem; color:#8b949e; text-align:center; margin-top:6px; }
+        .img-full { width:100%; border-radius:8px; border:1px solid #30363d; margin:20px 0; }
+        .section-rule { border:none; border-top:1px solid #21262d; margin:36px 0; }
+        .serial-output { background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:14px 18px; margin:16px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:0.88rem; color:#7ee787; line-height:1.8; white-space:pre-wrap; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">&larr; Back to Dashboard</a>
+            <div>
+                <h1>Lab 5: Linear PID and Linear Interpolation</h1>
+                <p class="lab-meta">MAE 4190 &bull; Spring 2026 &bull; Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li>
+                    <a href="#prelab" style="font-weight:600;color:#58a6ff;">Prelab</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#ble-infrastructure">BLE Infrastructure</a></li>
+                        <li><a href="#debugging-setup">Debugging Setup</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#lab-tasks" style="font-weight:600;color:#58a6ff;">Lab Tasks</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#pid-design">PD Controller Design</a></li>
+                        <li><a href="#gain-tuning">Gain Tuning</a></li>
+                        <li><a href="#range-sampling">Range &amp; Sampling Time</a></li>
+                        <li><a href="#deadband">Deadband Handling</a></li>
+                        <li><a href="#results">Position Control Results</a></li>
+                        <li><a href="#perturbation">Perturbation Recovery</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#extrapolation" style="font-weight:600;color:#58a6ff;">Linear Extrapolation</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#extrap-impl">Implementation</a></li>
+                        <li><a href="#extrap-tradeoffs">D Term Tradeoffs</a></li>
+                        <li><a href="#improvements">Potential Improvements</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;"><a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a></li>
+            </ul>
+        </aside>
+
+        <main class="content">
+
+            <!-- ==================== PRELAB ==================== -->
+            <h2 id="prelab">Prelab</h2>
+
+            <h3 id="ble-infrastructure">BLE Infrastructure</h3>
+            <p>The control loop is triggered wirelessly: a <code>PID_START</code> command from the laptop sets a <code>pid_running</code> flag and records the start time. On the Artemis, the main loop checks this flag and calls <code>runPID()</code> every iteration when active. A hard safety timeout (configurable, default 5-6.5s) brakes the motors automatically regardless of BLE connection status. Three new BLE commands were added:</p>
+
+            <table class="data-table">
+                <thead><tr><th>Command</th><th>ID</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>PID_START</code></td><td>16</td><td>Starts PID run, resets log arrays, records start time</td></tr>
+                    <tr><td><code>GET_PID_LOG</code></td><td>17</td><td>Sends timestamped ToF + motor data over BLE</td></tr>
+                    <tr><td><code>SET_PID_GAINS</code></td><td>18</td><td>Updates Kp, Ki, Kd wirelessly without reflashing</td></tr>
+                </tbody>
+            </table>
+
+            <p>On the Python side, a notification handler parses incoming pipe-delimited strings (<code>T:&lt;ms&gt;|TOF:&lt;dist&gt;|MOT:&lt;pwm&gt;</code>) into arrays for plotting. Gains can be updated between runs without reflashing:</p>
+
+            <pre><code class="language-python">ble.send_command(CMD.SET_PID_GAINS, "0.06|0|0.017")
+time.sleep(1)
+ble.send_command(CMD.PID_START, "")</code></pre>
+
+            <hr class="section-rule">
+
+            <h3 id="debugging-setup">Debugging Setup</h3>
+            <p>All PID logic lives in a dedicated <code>pid.h</code>/<code>pid.cpp</code> module, keeping <code>main.ino</code> clean. Sensor data, timestamps, and motor commands share the same circular buffer and index as the normal logging mode. The buffer was upgraded from 150 to 1000 entries for PID plotting and tuning (may be decreased in later labs). After each run, <code>GET_PID_LOG</code> sends the full buffer over BLE for analysis. Two-panel plots (distance vs. time, motor PWM vs. time) were the primary debugging tool throughout tuning.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== LAB TASKS ==================== -->
+            <h2 id="lab-tasks">Lab Tasks</h2>
+
+            <h3 id="pid-design">PD Controller Design</h3>
+            <p>A PD controller was chosen for position control (4000-level). The target is 304mm (1 floor tile) from the wall, measured by the front-facing VL53L1X ToF sensor. The control law:</p>
+
+            <div class="formula-block">
+                error = distance - 304<br>
+                P_term = Kp * error<br>
+                D_term = Kd * filtered_derivative(error)<br>
+                motor_cmd = P_term + D_term <span class="comment">// clamped to [-255, 255]</span>
+            </div>
+
+            <p>The P term drives the car toward setpoint proportionally to distance. The D term brakes as error shrinks rapidly, preventing overshoot. A low-pass filter (alpha = 0.5) smooths the derivative to avoid amplifying ToF noise (~2-3mm jitter). We decided not to use an integral term in our controller, as the PD controller seemed to settle within ~10mm of setpoint.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="gain-tuning">Gain Tuning</h3>
+            <p>Tuning was done empirically, starting P-only and layering D on top:</p>
+
+            <p><strong>Step 1: P only.</strong> Starting at Kp = 0.02 (very slow approach), the gain was increased until overshoot appeared. At Kp = 0.035, the car reached 304mm but overshot to ~100mm before recovering.</p>
+
+            <img src="images/p_only_035.png" alt="P-only controller at Kp=0.035" class="img-full">
+
+            <p><strong>Step 2: Add D.</strong> With Kp = 0.06 (faster approach), Kd was tuned starting from 0.1 (way too high, caused violent jitter) down to 0.017, which provided smooth braking without sluggishness. Higher Kd values caused the D term to overpower P during approach, actually reversing the car before it reached setpoint.</p>
+
+            <img src="images/pd_only_06_017.png" alt="PD controller at Kp=0.06, Kd=0.017" class="img-full">
+
+            <div class="insight"><strong>Gain range reasoning:</strong> The ToF outputs 0-4000mm and motors accept 0-255 PWM. At max distance (~2600mm), error is ~2300. For Kp = 0.06, that maps to 138 PWM, fast but not saturated. For Kd, the derivative of error in mm/s during approach is roughly 500-2000. At Kd = 0.017 and 1000 mm/s, the D contribution is ~17, enough to noticeably brake without dominating.</div>
+
+            <hr class="section-rule">
+
+            <h3 id="range-sampling">Range &amp; Sampling Time</h3>
+            <p>The ToF sensor runs in <strong>Long mode with a 50ms timing budget</strong>, chosen for lower absolute error (+0.3 to +11.4mm) over Short mode based on Lab 3 testing. This produces readings at ~20Hz. The PID loop runs at ~125Hz (~8ms per iteration, measured) with no blocking calls; <code>checkForDataReady()</code> polls non-blocking and returns -1 when no new data is available.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="deadband">Deadband Handling</h3>
+            <p>From Lab 4, the motors require a minimum of ~50 PWM to overcome static friction on tile. PID outputs below this threshold are bumped up to the deadband minimum:</p>
+
+            <pre><code class="language-cpp">if (motor_cmd > 0 && motor_cmd < MOTOR_MIN_PWM) motor_cmd = MOTOR_MIN_PWM;
+if (motor_cmd < 0 && motor_cmd > -MOTOR_MIN_PWM) motor_cmd = -MOTOR_MIN_PWM;</code></pre>
+
+            <p>This creates a discontinuity at the setpoint where the motor jumps between +50, 0, and -50 PWM. The D term damps most of this jitter, but the high deadband threshold contributes to worse oscillation near setpoint since the motor is either at 50 PWM or off entirely. With better low-speed motors (lower deadband), the PWM output would be smoother and easier to tune in our case.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="results">Position Control Results</h3>
+            <p>Final gains: <strong>Kp = 0.06, Kd = 0.017</strong>. The controller was tested from three starting distances to demonstrate robustness. Maximum linear speed during the 2.5m run was approximately <strong>1.4 m/s</strong>, computed from the steepest slope in the ToF data (~700mm drop in 0.5s).</p>
+
+            <div class="img-grid">
+                <figure>
+                    <img src="images/1500.png" alt="PD run from 1.5m">
+                    <figcaption>Start: ~1500mm. Smooth approach, no overshoot.</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/2500.png" alt="PD run from 2.5m">
+                    <figcaption>Start: ~2500mm. Slight overshoot, quick recovery.</figcaption>
+                </figure>
+            </div>
+
+            <img src="images/3500.png" alt="PD run from 3.5m" class="img-full">
+            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">Start: ~3500mm. Overshoots to ~150mm due to higher approach velocity, recovers within ~1s.</p>
+
+            <p>Three successful runs recorded on video:</p>
+
+            <div class="img-grid">
+                <figure>
+                    <video controls style="width:100%;border-radius:8px;border:1px solid #30363d;">
+                        <source src="videos/pd_run_1500.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>Run from ~1.5m</figcaption>
+                </figure>
+                <figure>
+                    <video controls style="width:100%;border-radius:8px;border:1px solid #30363d;">
+                        <source src="videos/pd_run_2500.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>Run from ~2.5m</figcaption>
+                </figure>
+            </div>
+
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/pd_run_3500.mp4" type="video/mp4">
+            </video>
+            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">Run from ~3.5m</p>
+
+            <hr class="section-rule">
+
+            <h3 id="perturbation">Perturbation Recovery</h3>
+            <p>With the PID running and the car settled at setpoint, external pushes in both directions were applied. The car returns to 304mm after each perturbation, demonstrating closed-loop robustness:</p>
+
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/pd_perturbation.mp4" type="video/mp4">
+            </video>
+
+            <hr class="section-rule">
+
+            <!-- ==================== EXTRAPOLATION ==================== -->
+            <h2 id="extrapolation">Linear Extrapolation</h2>
+
+            <h3 id="extrap-impl">Implementation</h3>
+            <p>The ToF sensor returns new data every ~50ms, but the PID loop runs every ~8ms (measured). To decouple these rates, a linear extrapolation estimates distance between real readings using the slope from the last two measurements:</p>
+
+            <div class="formula-block">
+                slope = (reading_new - reading_old) / (time_new - time_old)<br>
+                estimated_distance = reading_new + slope * (now - time_new)
+            </div>
+
+            <p>A 200ms safety cap prevents runaway extrapolation if the sensor stops updating. The PID now computes a motor command every loop iteration rather than only on fresh ToF readings, increasing the effective control rate from ~20Hz to ~125Hz.</p>
+
+            <pre><code class="language-cpp">if (new_tof) {
+    // Update extrapolation state with real reading
+    extrap_dist1 = extrap_dist2;
+    extrap_time1 = extrap_time2;
+    extrap_dist2 = (float)tof1_array[index];
+    extrap_time2 = now;
+    extrap_count++;
+    if (extrap_count >= 2) {
+        extrap_slope = (extrap_dist2 - extrap_dist1)
+                     / (float)(extrap_time2 - extrap_time1);
+    }
+    distance = extrap_dist2;
+} else if (extrap_count >= 2) {
+    // Extrapolate between real readings
+    float time_since = (float)(now - extrap_time2);
+    if (time_since < 200.0)
+        distance = extrap_dist2 + extrap_slope * time_since;
+    else
+        distance = extrap_dist2;
+}</code></pre>
+
+            <hr class="section-rule">
+
+            <h3 id="extrap-tradeoffs">D Term Tradeoffs</h3>
+            <p>An important finding: running the D term on extrapolated data caused severe instability. With extrapolation, the system makes many micro-adjustments every loop (~8ms), and the derivative amplified these into wild motor swings. The side-by-side comparison below shows this clearly. We believe the slower sampling rate (~50ms) actually works in our favor with the noisy ToF data, making the D term less sensitive to minor changes. Gains tuned for 50ms were far too aggressive at 8ms.</p>
+
+            <div class="img-grid">
+                <figure>
+                    <img src="images/pd_only_06_017_jittery.png" alt="PD with D on extrapolated data - jittery">
+                    <figcaption>D on extrapolated data: motor output swings wildly</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/pd_only_06_017.png" alt="PD with D on real ToF only - clean">
+                    <figcaption>D on real ToF only: smooth, stable control</figcaption>
+                </figure>
+            </div>
+
+            <p>The solution was to <strong>compute D only on real ToF readings</strong> while letting P use the extrapolated distance every loop. Between real readings, the D term holds its last filtered value rather than recomputing. This gives the P term fast responsiveness from extrapolation while keeping D stable and noise-free. Biggest insight is that more frequent data is not always better when a controller branch amplifies noise.</p>
+
+            <div class="insight"><strong>Takeaway:</strong> Extrapolation improves P-term responsiveness (the car reacts to estimated position changes between sensor updates) but must be kept away from the derivative branch. The filtered D term at the sensor's native 20Hz rate provided the cleanest braking behavior.</div>
+
+            <hr class="section-rule">
+
+            <h3 id="improvements">Potential Improvements</h3>
+            <p>Several improvements could further refine the controller:</p>
+            <ul>
+                <li><strong>Active braking in D term:</strong> Currently the motors coast when PID output crosses zero. Using <code>brakeMotors()</code> (both H-bridge pins HIGH) at low error deltas would stop the car much faster than coasting through the deadband. This would be especially effective near setpoint where the car drifts back and forth between +50 and -50 PWM.</li>
+                <li><strong>Variable timing budget:</strong> Lowering the ToF timing budget during fast approach (e.g. 20ms for faster updates) and switching to 50ms near setpoint (for accuracy) could improve both responsiveness and steady-state precision.</li>
+            </ul>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ACKNOWLEDGEMENTS ==================== -->
+            <h2 id="acknowledgements">Acknowledgements</h2>
+            <p>
+                Claude AI was used throughout this lab for assistance with PID controller design and implementation,
+                gain tuning strategy, linear extrapolation implementation, debugging BLE data transfer, and structuring this lab report.
+                All hardware assembly, testing, data collection, gain tuning, and video recording were done by me.
+            </p>
+
+        </main>
+    </div>
+
+    <script src="../scripts/lab-scripts.js"></script>
+    <script>hljs.highlightAll();</script>
+
+</body>
+</html>
