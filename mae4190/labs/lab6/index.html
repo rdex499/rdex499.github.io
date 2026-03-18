@@ -65,7 +65,7 @@
             <p>The BLE infrastructure from Lab 5 was extended with two new commands: <code>PID_ORIENT</code> starts the orientation controller with an optional setpoint argument, and <code>SET_SETPOINT</code> changes the target angle mid-run. The existing <code>SET_PID_GAINS</code> allows wireless tuning. A <code>pid_mode</code> flag switches between position control (mode 0) and orientation control (mode 1) within the same <code>runPID()</code> framework. The IMU module (<code>imu.h/imu.cpp</code>), implemented in Lab 3 with gyroscope integration, low-pass filtering, and complementary filtering, was reused for yaw estimation.</p>
 
             <pre><code class="language-python"># Typical orientation test workflow
-ble.send_command(CMD.SET_PID_GAINS, "8|0|0.5")
+ble.send_command(CMD.SET_PID_GAINS, "8|0|0.52")
 ble.send_command(CMD.PID_ORIENT, "90")   # Turn 90 degrees
 # Mid-run setpoint change:
 ble.send_command(CMD.SET_SETPOINT, "180") # Now target 180</code></pre>
@@ -126,7 +126,8 @@ float d_term = kd * d_filtered;  // d_alpha = 0.5</code></pre>
 
             <h3 id="tuning">Gain Tuning</h3>
 
-            <p>Final gains: <strong>Kp = 8.0, Kd = 0.5</strong>. The high Kp works because the grippy tires provide strong natural braking. Starting at Kp = 0.5 (too slow), gains were increased. At Kp = 2.0, the car vibrated at setpoint due to the 155 PWM deadband minimum jerking the car back and forth. At Kp = 8.0 with Kd = 0.5, the car snaps to the target angle and tire friction stops it immediately. The brake zone eliminates residual jitter.</p>
+            <p>Final gains: <strong>Kp = 8.0, Kd = 0.52</strong>. The high Kp works because the grippy tires provide strong natural braking. Starting at Kp = 0.5 (too slow), gains were increased. At Kp = 2.0, the car 
+                vibrated at setpoint due to the 155 PWM deadband minimum jerking the car back and forth. At Kp = 8.0 with Kd = 0.52, the car snaps to the target angle and tire friction stops it immediately. The brake zone eliminates residual jitter.</p>
 
             <hr class="section-rule">
 
