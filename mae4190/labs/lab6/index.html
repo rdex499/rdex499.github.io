@@ -62,10 +62,10 @@
             <!-- ==================== PRELAB ==================== -->
             <h2 id="prelab">Prelab</h2>
 
-            <p>The BLE infrastructure from Lab 5 was extended with two new commands: <code>PID_ORIENT</code> starts the orientation controller with an optional setpoint argument, and <code>SET_SETPOINT</code> changes the target angle mid-run. The existing <code>SET_PID_GAINS</code> allows wireless tuning. A <code>pid_mode</code> flag switches between position control (mode 0) and orientation control (mode 1) within the same <code>runPID()</code> framework. The IMU module (<code>imu.h/imu.cpp</code>), implemented in Lab 3 with gyroscope integration, low-pass filtering, and complementary filtering, was reused for yaw estimation.</p>
+            <p>The BLE infrastructure from Lab 5 was extended with two new commands: <code>PID_ORIENT</code> starts the orientation controller with an optional setpoint argument, and <code>SET_SETPOINT</code> changes the target angle mid-run. The existing <code>SET_PID_GAINS</code> allows wireless tuning. A <code>pid_mode</code> flag switches between position control (mode 0) and orientation control (mode 1) within the same <code>runPID()</code> framework. The IMU module (<code>imu.h/imu.cpp</code>), implemented in Lab 3 with gyroscope integration, low-pass filtering, and complementary filtering, was reused for yaw estimation. During a PID run, all data (timestamps, yaw angles, motor commands) is stored in on-board arrays. After the run completes, <code>GET_PID_LOG</code> sends the logged data back to the laptop over BLE, where a Python notification handler parses it into arrays for plotting.</p>
 
             <pre><code class="language-python"># Typical orientation test workflow
-ble.send_command(CMD.SET_PID_GAINS, "8|0|0.52")
+ble.send_command(CMD.SET_PID_GAINS, "8|0|0.5")
 ble.send_command(CMD.PID_ORIENT, "90")   # Turn 90 degrees
 # Mid-run setpoint change:
 ble.send_command(CMD.SET_SETPOINT, "180") # Now target 180</code></pre>
@@ -86,7 +86,7 @@ ble.send_command(CMD.SET_SETPOINT, "180") # Now target 180</code></pre>
 
             <p><strong>Gyro bias and drift:</strong> The gyroscope has a small bias (~0.5-2 deg/s when stationary) that accumulates through integration. Over a 7-second run, this could theoretically produce 3.5-14 degrees of drift. In practice, our drift was consistently near the lower bound, typically under 3 degrees, which falls within our brake zone tolerance. We attribute this to accurate <code>micros()</code> timing and low ambient vibration at setpoint.</p>
 
-            <p><strong>DMP consideration:</strong> The ICM-20948 includes a Digital Motion Processor that fuses accelerometer, gyroscope, and magnetometer data on-chip to produce a drift-corrected orientation quaternion at up to 1.1 kHz. For our 7-second runs, raw integration was sufficient since observed drift was minimal. However, for future labs involving navigation or stunts where the car runs continuously, DMP would be essential. Without it, drift accumulates over minutes, making accurate heading control impossible. The DMP also handles gyro bias calibration automatically, eliminating the need for manual offset correction at startup.</p>
+            <p><strong>DMP consideration:</strong> The ICM-20948 includes a Digital Motion Processor that fuses accelerometer, gyroscope, and magnetometer data on-chip for a drift-corrected orientation estimate at up to 1.1 kHz. For our 7-second runs, raw integration was sufficient since observed drift was minimal. For longer navigation or stunt sequences, DMP would be essential as drift accumulates over minutes.</p>
 
             <p><strong>Gyroscope range:</strong> The ICM-20948 defaults to +/-250 dps. During aggressive turns, our robot exceeded this, causing the sensor to saturate and the integrated angle to fall behind. The car would overshoot because the PID thought it hadn't turned far enough. We fixed this by increasing the range to +/-2000 dps:</p>
 
@@ -98,7 +98,7 @@ myICM.setFullScale((ICM_20948_Internal_Gyr), fss);</code></pre>
 
             <h3 id="controller-design">Controller Design</h3>
 
-            <p>A PD controller drives the robot differentially (one wheel forward, one backward) for in-place rotation:</p>
+            <p>A PD controller drives the robot differentially (one wheel forward, one backward) for in-place rotation. We chose PD over full PID because the grippy tires provide strong natural braking and the brake zone eliminates steady-state error, making an integral term unnecessary. P-only was tested first but caused oscillation due to the high deadband minimum; the D term damps this effectively.</p>
 
             <div class="formula-block">
                 error = setpoint - yaw_g<br>
@@ -126,8 +126,7 @@ float d_term = kd * d_filtered;  // d_alpha = 0.5</code></pre>
 
             <h3 id="tuning">Gain Tuning</h3>
 
-            <p>Final gains: <strong>Kp = 8.0, Kd = 0.52</strong>. The high Kp works because the grippy tires provide strong natural braking. Starting at Kp = 0.5 (too slow), gains were increased. At Kp = 2.0, the car 
-                vibrated at setpoint due to the 155 PWM deadband minimum jerking the car back and forth. At Kp = 8.0 with Kd = 0.52, the car snaps to the target angle and tire friction stops it immediately. The brake zone eliminates residual jitter.</p>
+            <p>Final gains: <strong>Kp = 8.0, Kd = 0.5</strong>. The high Kp works because the grippy tires provide strong natural braking. Starting at Kp = 0.5 (too slow), gains were increased. At Kp = 2.0, the car vibrated at setpoint due to the 155 PWM deadband minimum jerking the car back and forth. At Kp = 8.0 with Kd = 0.5, the car snaps to the target angle and tire friction stops it immediately. The brake zone eliminates residual jitter.</p>
 
             <hr class="section-rule">
 
@@ -179,16 +178,14 @@ float d_term = kd * d_filtered;  // d_alpha = 0.5</code></pre>
 
             <h3 id="programming">Programming Implementation</h3>
 
-            <p><strong>BLE commands during PID execution:</strong> The main loop calls <code>write_data()</code> and <code>read_data()</code> every iteration, even while the PID is active. This means the Artemis checks for incoming BLE commands on every loop cycle (~8ms). When a <code>SET_SETPOINT</code> command arrives mid-run, it updates the global <code>pid_setpoint</code> variable immediately. On the very next PID iteration, <code>runPID()</code> reads the updated value and the controller adjusts accordingly, with no interruption or restart. The same applies to <code>SET_PID_GAINS</code>. This architecture is critical for future navigation tasks where the setpoint must update continuously as the robot follows a planned path or executes stunts.</p>
+            <p><strong>BLE commands during PID execution:</strong> The main loop calls <code>write_data()</code> and <code>read_data()</code> every iteration, even while the PID is active. When a <code>SET_SETPOINT</code> command arrives mid-run, it updates <code>pid_setpoint</code> immediately, and the next PID iteration responds accordingly with no restart required. This is critical for future navigation where the setpoint must update continuously.</p>
 
             <hr class="section-rule">
 
             <!-- ==================== FUTURE ==================== -->
             <h2 id="future">Future Work</h2>
 
-            <p><strong>Combined linear + orientation control:</strong> The orientation controller's differential output could be added as an offset to the linear controller's forward drive, allowing the robot to maintain a heading while driving. The PID infrastructure already supports mode switching.</p>
-
-            <p><strong>DMP integration:</strong> For longer runs, replacing raw gyro integration with the DMP's drift-corrected quaternion output would eliminate accumulated bias error and remove the need for manual range configuration.</p>
+            <p><strong>Combined linear + orientation control</strong> would allow the robot to drive forward while maintaining a heading. <strong>DMP integration</strong> would eliminate drift for longer runs. Both are planned for future labs.</p>
 
             <hr class="section-rule">
 
