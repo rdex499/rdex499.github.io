@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 6: Orientation PID Control - MAE 4190</title>
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        .data-table { width:100%; border-collapse:collapse; margin:20px 0; font-size:0.92rem; }
+        .data-table th { background:#161b22; color:#58a6ff; padding:10px 14px; text-align:left; font-weight:600; border-bottom:2px solid #30363d; }
+        .data-table td { padding:9px 14px; border-bottom:1px solid #21262d; color:#c9d1d9; }
+        .data-table tr:hover td { background:#161b22; }
+        .formula-block { background:#0d1117; border:1px solid #30363d; border-left:3px solid #58a6ff; border-radius:6px; padding:16px 20px; margin:18px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:1.0rem; color:#e6edf3; line-height:2.0; }
+        .formula-block .comment { color:#8b949e; font-size:0.85rem; }
+        .insight { background:#111820; border:1px solid #1f6feb; border-radius:8px; padding:14px 18px; margin:18px 0; color:#c9d1d9; font-size:0.93rem; line-height:1.6; }
+        .insight strong { color:#58a6ff; }
+        .img-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0; }
+        .img-grid figure { margin:0; }
+        .img-grid img { width:100%; border-radius:8px; border:1px solid #30363d; }
+        .img-grid figcaption { font-size:0.82rem; color:#8b949e; text-align:center; margin-top:6px; }
+        .img-full { width:100%; border-radius:8px; border:1px solid #30363d; margin:20px 0; }
+        .section-rule { border:none; border-top:1px solid #21262d; margin:36px 0; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">&larr; Back to Dashboard</a>
+            <div>
+                <h1>Lab 6: Orientation PID Control</h1>
+                <p class="lab-meta">MAE 4190 &bull; Spring 2026 &bull; Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li><a href="#prelab" style="font-weight:600;color:#58a6ff;">Prelab</a></li>
+                <li style="margin-top:12px;">
+                    <a href="#lab-tasks" style="font-weight:600;color:#58a6ff;">Lab Tasks</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#input-signal">PID Input Signal</a></li>
+                        <li><a href="#controller-design">Controller Design</a></li>
+                        <li><a href="#derivative">Derivative Term</a></li>
+                        <li><a href="#tuning">Gain Tuning</a></li>
+                        <li><a href="#results">Results</a></li>
+                        <li><a href="#perturbation">Perturbation Recovery</a></li>
+                        <li><a href="#programming">Programming Implementation</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;"><a href="#future" style="font-weight:600;color:#58a6ff;">Future Work</a></li>
+                <li style="margin-top:12px;"><a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a></li>
+            </ul>
+        </aside>
+
+        <main class="content">
+
+            <!-- ==================== PRELAB ==================== -->
+            <h2 id="prelab">Prelab</h2>
+
+            <p>The BLE infrastructure from Lab 5 was extended with two new commands: <code>PID_ORIENT</code> starts the orientation controller with an optional setpoint argument, and <code>SET_SETPOINT</code> changes the target angle mid-run. The existing <code>SET_PID_GAINS</code> allows wireless tuning. A <code>pid_mode</code> flag switches between position control (mode 0) and orientation control (mode 1) within the same <code>runPID()</code> framework. The IMU module (<code>imu.h/imu.cpp</code>), implemented in Lab 3 with gyroscope integration, low-pass filtering, and complementary filtering, was reused for yaw estimation. During a PID run, all data (timestamps, yaw angles, motor commands) is stored in on-board arrays. After the run completes, <code>GET_PID_LOG</code> sends the logged data back to the laptop over BLE, where a Python notification handler parses it into arrays for plotting.</p>
+
+            <pre><code class="language-python"># Typical orientation test workflow
+ble.send_command(CMD.SET_PID_GAINS, "8|0|0.5")
+ble.send_command(CMD.PID_ORIENT, "90")   # Turn 90 degrees
+# Mid-run setpoint change:
+ble.send_command(CMD.SET_SETPOINT, "180") # Now target 180</code></pre>
+
+            <hr class="section-rule">
+
+            <!-- ==================== LAB TASKS ==================== -->
+            <h2 id="lab-tasks">Lab Tasks</h2>
+
+            <h3 id="input-signal">PID Input Signal</h3>
+
+            <p>Orientation is estimated by integrating the gyroscope's Z-axis output (<code>gyrZ()</code>) using <code>micros()</code> for sub-millisecond timing precision. This prevents the double-counting issue that occurred with <code>millis()</code>, where multiple IMU reads within the same millisecond produced incorrect dt values.</p>
+
+            <div class="formula-block">
+                dt = (now_us - prev_us) / 1000000.0 <span class="comment">// microsecond precision</span><br>
+                yaw_g += gyrZ() * dt
+            </div>
+
+            <p><strong>Gyro bias and drift:</strong> The gyroscope has a small bias (~0.5-2 deg/s when stationary) that accumulates through integration. Over a 7-second run, this could theoretically produce 3.5-14 degrees of drift. In practice, our drift was consistently near the lower bound, typically under 3 degrees, which falls within our brake zone tolerance. We attribute this to accurate <code>micros()</code> timing and low ambient vibration at setpoint.</p>
+
+            <p><strong>DMP consideration:</strong> The ICM-20948 includes a Digital Motion Processor that fuses accelerometer, gyroscope, and magnetometer data on-chip for a drift-corrected orientation estimate at up to 1.1 kHz. For our 7-second runs, raw integration was sufficient since observed drift was minimal. For longer navigation or stunt sequences, DMP would be essential as drift accumulates over minutes.</p>
+
+            <p><strong>Gyroscope range:</strong> The ICM-20948 defaults to +/-250 dps. During aggressive turns, our robot exceeded this, causing the sensor to saturate and the integrated angle to fall behind. The car would overshoot because the PID thought it hadn't turned far enough. We fixed this by increasing the range to +/-2000 dps:</p>
+
+            <pre><code class="language-cpp">ICM_20948_fss_t fss;
+fss.g = dps2000;
+myICM.setFullScale((ICM_20948_Internal_Gyr), fss);</code></pre>
+
+            <hr class="section-rule">
+
+            <h3 id="controller-design">Controller Design</h3>
+
+            <p>A PD controller drives the robot differentially (one wheel forward, one backward) for in-place rotation. We chose PD over full PID because the grippy tires provide strong natural braking and the brake zone eliminates steady-state error, making an integral term unnecessary. P-only was tested first but caused oscillation due to the high deadband minimum; the D term damps this effectively.</p>
+
+            <div class="formula-block">
+                error = setpoint - yaw_g<br>
+                P_term = Kp * error<br>
+                D_term = Kd * LPF(-gyrZ()) <span class="comment">// low-pass filtered, negated to oppose motion</span><br>
+                motor_cmd = P_term + D_term
+            </div>
+
+            <p>A brake zone of 3 degrees around the setpoint calls <code>brakeMotors()</code> to hold position. The turn deadband is 155 PWM (from Lab 4 on-axis turn testing on wood).</p>
+
+            <hr class="section-rule">
+
+            <h3 id="derivative">Derivative Term</h3>
+
+            <p><strong>Using gyrZ() directly:</strong> Since yaw is the integral of gyro rate, the derivative of yaw is simply the gyro rate. Rather than numerically differentiating the yaw signal (which amplifies noise), we use <code>gyrZ()</code> directly.</p>
+
+            <p><strong>Low-pass filter:</strong> We apply a first-order low-pass filter to the D term to smooth any high-frequency noise, reusing the same filter structure from Lab 5:</p>
+
+            <pre><code class="language-cpp">d_filtered = d_alpha * (-gyro_rate) + (1 - d_alpha) * d_filtered;
+float d_term = kd * d_filtered;  // d_alpha = 0.5</code></pre>
+
+            <p><strong>Derivative kick:</strong> The D term uses the gyro rate (measurement derivative) rather than the error derivative. Changing the setpoint mid-run does not produce a derivative spike because the gyro rate is unaffected by setpoint changes. This makes <code>SET_SETPOINT</code> safe to call during active control.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="tuning">Gain Tuning</h3>
+
+            <p>Final gains: <strong>Kp = 8.0, Kd = 0.5</strong>. The high Kp works because the grippy tires provide strong natural braking. Starting at Kp = 0.5 (too slow), gains were increased. At Kp = 2.0, the car vibrated at setpoint due to the 155 PWM deadband minimum jerking the car back and forth. At Kp = 8.0 with Kd = 0.5, the car snaps to the target angle and tire friction stops it immediately. The brake zone eliminates residual jitter.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="results">Results</h3>
+
+            <img src="images/orient_360.png" alt="360 degree orientation control" class="img-full">
+
+            <video controls style="max-width:100%;border-radius:8px;margin:0 0 24px 0;border:1px solid #30363d;">
+                <source src="videos/orient_360.mp4" type="video/mp4">
+            </video>
+
+            <div class="img-grid">
+                <figure>
+                    <img src="images/orient_90.png" alt="90 degree turn">
+                    <figcaption>Setpoint: 90 degrees</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/orient_180.png" alt="180 degree turn">
+                    <figcaption>Setpoint: 180 degrees</figcaption>
+                </figure>
+            </div>
+
+            <div class="img-grid">
+                <figure>
+                    <video controls style="width:100%;border-radius:8px;border:1px solid #30363d;">
+                        <source src="videos/orient_90.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>90 degree turn</figcaption>
+                </figure>
+                <figure>
+                    <video controls style="width:100%;border-radius:8px;border:1px solid #30363d;">
+                        <source src="videos/orient_180.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>180 degree turn</figcaption>
+                </figure>
+            </div>
+
+            <hr class="section-rule">
+
+            <h3 id="perturbation">Perturbation Recovery</h3>
+
+            <p>With the PID holding setpoint 0, the car was pushed by hand in both directions. It returns to the target heading after each disturbance:</p>
+
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/orient_perturbation.mp4" type="video/mp4">
+            </video>
+
+            <hr class="section-rule">
+
+            <h3 id="programming">Programming Implementation</h3>
+
+            <p><strong>BLE commands during PID execution:</strong> The main loop calls <code>write_data()</code> and <code>read_data()</code> every iteration, even while the PID is active. When a <code>SET_SETPOINT</code> command arrives mid-run, it updates <code>pid_setpoint</code> immediately, and the next PID iteration responds accordingly with no restart required. This is critical for future navigation where the setpoint must update continuously.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== FUTURE ==================== -->
+            <h2 id="future">Future Work</h2>
+
+            <p><strong>Combined linear + orientation control</strong> would allow the robot to drive forward while maintaining a heading. <strong>DMP integration</strong> would eliminate drift for longer runs. Both are planned for future labs.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ACKNOWLEDGEMENTS ==================== -->
+            <h2 id="acknowledgements">Acknowledgements</h2>
+            <p>
+                Claude AI was used for assistance with PID controller adaptation from linear to orientation control,
+                debugging gyroscope integration timing and range configuration, and structuring this report.
+                All hardware testing, gain tuning, data collection, and video recording were done by me.
+            </p>
+
+        </main>
+    </div>
+
+    <script src="../scripts/lab-scripts.js"></script>
+    <script>hljs.highlightAll();</script>
+
+</body>
+</html>
