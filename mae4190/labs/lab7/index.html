@@ -212,11 +212,10 @@ void kfUpdate(float tof_reading) {
 
             <p>The KF estimate smoothly tracks the raw ToF readings without the noise spikes visible in the raw data. The motor PWM ramps down as the car approaches setpoint, and the car settles near 304mm. The key advantage over the Lab 5 extrapolation: the KF uses a physics model of the car's dynamics, so between ToF readings it predicts based on motor input and drag rather than blindly extending a line.</p>
 
-            <!-- ADD VIDEO if you have one
+            
             <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
                 <source src="videos/kf_pid_run.mp4" type="video/mp4">
             </video>
-            -->
 
             <hr class="section-rule">
 
