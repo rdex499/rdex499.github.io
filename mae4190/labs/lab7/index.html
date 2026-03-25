@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 7: Kalman Filter - MAE 4190</title>
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        .formula-block { background:#0d1117; border:1px solid #30363d; border-left:3px solid #58a6ff; border-radius:6px; padding:16px 20px; margin:18px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:1.0rem; color:#e6edf3; line-height:2.0; }
+        .formula-block .comment { color:#8b949e; font-size:0.85rem; }
+        .insight { background:#111820; border:1px solid #1f6feb; border-radius:8px; padding:14px 18px; margin:18px 0; color:#c9d1d9; font-size:0.93rem; line-height:1.6; }
+        .insight strong { color:#58a6ff; }
+        .img-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0; }
+        .img-grid figure { margin:0; }
+        .img-grid img { width:100%; border-radius:8px; border:1px solid #30363d; }
+        .img-grid figcaption { font-size:0.82rem; color:#8b949e; text-align:center; margin-top:6px; }
+        .img-full { width:100%; border-radius:8px; border:1px solid #30363d; margin:20px 0; }
+        .section-rule { border:none; border-top:1px solid #21262d; margin:36px 0; }
+        .data-table { width:100%; border-collapse:collapse; margin:20px 0; font-size:0.92rem; }
+        .data-table th { background:#161b22; color:#58a6ff; padding:10px 14px; text-align:left; font-weight:600; border-bottom:2px solid #30363d; }
+        .data-table td { padding:9px 14px; border-bottom:1px solid #21262d; color:#c9d1d9; }
+        .data-table tr:hover td { background:#161b22; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">&larr; Back to Dashboard</a>
+            <div>
+                <h1>Lab 7: Kalman Filter</h1>
+                <p class="lab-meta">MAE 4190 &bull; Spring 2026 &bull; Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li>
+                    <a href="#step-response" style="font-weight:600;color:#58a6ff;">1. Estimate Drag and Momentum</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#step-experiment">Step Response Experiment</a></li>
+                        <li><a href="#compute-dm">Computing d and m</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#init-kf" style="font-weight:600;color:#58a6ff;">2. Initialize KF (Python)</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#matrices">A, B, C Matrices</a></li>
+                        <li><a href="#noise">Noise Covariances</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#kf-python" style="font-weight:600;color:#58a6ff;">3. KF in Python</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#kf-function">KF Function</a></li>
+                        <li><a href="#kf-results">Results</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#kf-robot" style="font-weight:600;color:#58a6ff;">4. KF on the Robot</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#arduino-impl">Implementation</a></li>
+                        <li><a href="#robot-results">Verification</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;"><a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a></li>
+            </ul>
+        </aside>
+
+        <main class="content">
+
+            <!-- ==================== 1. STEP RESPONSE ==================== -->
+            <h2 id="step-response">1. Estimate Drag and Momentum</h2>
+
+            <h3 id="step-experiment">Step Response Experiment</h3>
+            <p>To build the state space model, I drove the car toward a wall at a constant 150 PWM (about 59% of max) while logging ToF distance. This is in the range of PWM values my Lab 5 PID controller typically commanded, so the dynamics should be representative. I added a <code>STEP_RESPONSE</code> BLE command that zeros the data arrays, calls <code>driveForward(speed)</code>, and lets the normal-mode loop log ToF readings at ~20Hz. A manual <code>STOP</code> command brakes the car before wall impact.</p>
+
+            <p>The raw data had some initial readings where the car hadn't started moving yet, so I trimmed those off. The resulting plots show distance decreasing from ~1900mm to the wall, velocity ramping up to ~1700 mm/s, and a constant motor input of 150 PWM:</p>
+
+            <!-- REPLACE with your actual screenshot filenames -->
+            <img src="images/step_response_plots.png" alt="Step response: ToF distance, computed speed, motor input" class="img-full">
+            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">Step response data. Top: ToF distance. Middle: computed speed. Bottom: constant 150 PWM input.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="compute-dm">Computing d and m</h3>
+            <p>Velocity was computed from finite differences of the ToF data. The readings are noisy (characteristic of differentiating position data), but the trend is clear: the car accelerates from rest and the speed oscillates around a steady state of roughly 1700 mm/s.</p>
+
+            <p>Using 90% rise time, the velocity target is 1530 mm/s. From the velocity data, this is reached at about t = 0.154s. The drag and momentum terms follow from the first-order system model:</p>
+
+            <div class="formula-block">
+                d = 1 / v_ss = 1 / 1700 = 0.000588<br>
+                m = -d * t_rise / ln(1 - 0.90) = 0.0000392
+            </div>
+
+            <p>Data was saved to CSV so it persists across kernel restarts.</p>
+
+            <table class="data-table">
+                <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+                <tbody>
+                    <tr><td>Step PWM</td><td>150</td></tr>
+                    <tr><td>Steady state speed</td><td>1700 mm/s</td></tr>
+                    <tr><td>Rise fraction</td><td>90%</td></tr>
+                    <tr><td>Rise time</td><td>0.154 s</td></tr>
+                    <tr><td>Drag (d)</td><td>0.000588</td></tr>
+                    <tr><td>Momentum (m)</td><td>0.0000392</td></tr>
+                </tbody>
+            </table>
+
+            <hr class="section-rule">
+
+            <!-- ==================== 2. INITIALIZE KF ==================== -->
+            <h2 id="init-kf">2. Initialize KF (Python)</h2>
+
+            <h3 id="matrices">A, B, C Matrices</h3>
+            <p>The state vector is [position, velocity]. Position is defined as the negative of distance-to-wall (so it increases as the car moves forward). The continuous-time model comes from F = u - d*v:</p>
+
+            <div class="formula-block">
+                A = [[0, 1], [0, -d/m]]<br>
+                B = [[0], [1/m]]<br>
+                C = [[-1, 0]] <span class="comment">// ToF reads positive distance = -position</span>
+            </div>
+
+            <p>Discretization uses the Euler method with the average ToF sampling period of 56ms:</p>
+
+            <pre><code class="language-python">dt = 0.056  # average ToF sampling period
+Ad = np.eye(2) + dt * A
+Bd = dt * B</code></pre>
+
+            <hr class="section-rule">
+
+            <h3 id="noise">Noise Covariances</h3>
+            <p>The process noise and measurement noise covariances control the tradeoff between trusting the model versus the sensor. Larger process noise (Sigma_u) means less trust in the model, so the filter leans toward raw sensor readings. Larger measurement noise (Sigma_z) means less trust in the ToF, so the filter leans toward model predictions.</p>
+
+            <p>I started with sigma_1 = sigma_2 = 20 (position and velocity process noise) and sigma_3 = 20 (measurement noise). These are ballpark values: the ToF datasheet quotes ~5-20mm accuracy in long mode, and 20mm of process noise accounts for model imperfections like floor friction variations and battery voltage sag.</p>
+
+            <pre><code class="language-python">Sigma_u = np.array([[20**2, 0], [0, 20**2]])
+Sigma_z = np.array([[20**2]])
+x = np.array([[-TOF[0]], [0]])  # init with first reading, zero velocity</code></pre>
+
+            <hr class="section-rule">
+
+            <!-- ==================== 3. KF IN PYTHON ==================== -->
+            <h2 id="kf-python">3. KF in Python</h2>
+
+            <h3 id="kf-function">KF Function</h3>
+            <p>The Kalman Filter function follows the lecture slides. Each call does one predict step (propagate state through the model) and one update step (correct with a ToF measurement):</p>
+
+            <pre><code class="language-python">def kf(mu, sigma, u, y):
+    mu_p = Ad.dot(mu) + Bd.dot(u)
+    sigma_p = Ad.dot(sigma.dot(Ad.T)) + Sigma_u
+
+    sigma_m = C.dot(sigma_p.dot(C.T)) + Sigma_z
+    kkf_gain = sigma_p.dot(C.T.dot(np.linalg.inv(sigma_m)))
+
+    y_m = y - C.dot(mu_p)
+    mu = mu_p + kkf_gain.dot(y_m)
+    sigma = (np.eye(2) - kkf_gain.dot(C)).dot(sigma_p)
+    return mu, sigma</code></pre>
+
+            <h3 id="kf-results">Results</h3>
+            <p>Running the KF on the step response data produces a smooth distance estimate that tracks the raw ToF closely, and a velocity estimate that filters out the noise in the finite-difference computation. The raw velocity data swings between 200-2300 mm/s, while the KF velocity estimate is a clean ~1700 mm/s curve:</p>
+
+            <!-- REPLACE with your actual screenshot filenames -->
+            <img src="images/kf_step_response.png" alt="KF estimate vs raw ToF on step response data" class="img-full">
+            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">KF estimate (red) vs raw ToF (blue dots). Top: distance. Bottom: velocity.</p>
+
+            <div class="insight"><strong>Sigma tuning:</strong> With equal process and measurement noise (20, 20, 20), the filter balances model and sensor roughly equally. Increasing process noise would make the red line hug the blue dots more tightly (passing noise through). Increasing measurement noise would make the estimate smoother but slower to react to real changes. The equal-weight configuration worked well for this system.</div>
+
+            <hr class="section-rule">
+
+            <!-- ==================== 4. KF ON ROBOT ==================== -->
+            <h2 id="kf-robot">4. KF on the Robot</h2>
+
+            <h3 id="arduino-impl">Implementation</h3>
+            <p>The KF replaces the linear extrapolation from Lab 5 entirely. All extrapolation state variables (<code>extrap_dist1/2</code>, <code>extrap_slope</code>, etc.) were removed. The KF state is stored as plain floats (no external library needed) representing the 2x2 matrices:</p>
+
+            <pre><code class="language-cpp">// KF predict: runs every PID loop iteration (~8ms)
+void kfPredict(float u) {
+    float m0 = ad00*mu0 + ad01*mu1 + bd0*u;
+    float m1 = ad10*mu0 + ad11*mu1 + bd1*u;
+    mu0 = m0; mu1 = m1;
+    // Sigma_p = Ad * Sigma * Ad^T + Sigma_u
+    // ... (expanded 2x2 math)
+}
+
+// KF update: runs only when new ToF reading arrives (~20Hz)
+void kfUpdate(float tof_reading) {
+    float sigma_m = s00 + sz;
+    float k0 = -s00 / sigma_m;
+    float k1 = -s10 / sigma_m;
+    float innov = tof_reading + mu0;
+    mu0 = mu0 + k0 * innov;
+    mu1 = mu1 + k1 * innov;
+    // ... update covariance
+}</code></pre>
+
+            <p>Every PID iteration calls <code>kfPredict()</code> with the last motor command (normalized by the step size of 150). When a new ToF reading arrives, <code>kfUpdate()</code> corrects the estimate. The PID then uses the KF distance estimate (<code>-mu0</code>) instead of raw or extrapolated ToF. The D term uses the KF velocity estimate (<code>mu1</code>) directly, which is cleaner than the filtered finite-difference approach from Lab 5.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="robot-results">Verification</h3>
+            <p>Running the KF-based PID from ~1.5m, the car approaches the setpoint with the KF providing a smooth distance estimate between sparse ToF readings:</p>
+
+            <!-- REPLACE with your actual screenshot filenames -->
+            <img src="images/kf_pid_results.png" alt="KF on robot: raw ToF vs KF estimate during PID run" class="img-full">
+            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">Raw ToF (blue) vs KF estimate (red) during PID position control.</p>
+
+            <p>The KF estimate smoothly tracks the raw ToF readings without the noise spikes visible in the raw data. The motor PWM ramps down as the car approaches setpoint, and the car settles near 304mm. The key advantage over the Lab 5 extrapolation: the KF uses a physics model of the car's dynamics, so between ToF readings it predicts based on motor input and drag rather than blindly extending a line.</p>
+
+            <!-- ADD VIDEO if you have one
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/kf_pid_run.mp4" type="video/mp4">
+            </video>
+            -->
+
+            <hr class="section-rule">
+
+            <!-- ==================== ACKNOWLEDGEMENTS ==================== -->
+            <h2 id="acknowledgements">Acknowledgements</h2>
+            <p>
+                Claude AI was used throughout this lab for assistance with Kalman Filter implementation (both Python and Arduino),
+                step response data collection setup, system identification, and structuring this lab report.
+                All hardware assembly, testing, data collection, parameter tuning, and video recording were done by me.
+            </p>
+
+        </main>
+    </div>
+
+    <script src="../scripts/lab-scripts.js"></script>
+    <script>hljs.highlightAll();</script>
+
+</body>
+</html>
