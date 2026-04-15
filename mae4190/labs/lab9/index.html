@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 9: Mapping - MAE 4190</title>
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>
+        MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] } };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+    <style>
+        .formula-block { background:#0d1117; border:1px solid #30363d; border-left:3px solid #58a6ff; border-radius:6px; padding:16px 20px; margin:18px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:1.0rem; color:#e6edf3; line-height:2.0; }
+        .formula-block .comment { color:#8b949e; font-size:0.85rem; }
+        .insight { background:#111820; border:1px solid #1f6feb; border-radius:8px; padding:14px 18px; margin:18px 0; color:#c9d1d9; font-size:0.93rem; line-height:1.6; }
+        .insight strong { color:#58a6ff; }
+        .img-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0; }
+        .img-grid figure { margin:0; }
+        .img-grid img { width:100%; border-radius:8px; border:1px solid #30363d; }
+        .img-grid figcaption { font-size:0.82rem; color:#8b949e; text-align:center; margin-top:6px; }
+        .img-full { width:100%; border-radius:8px; border:1px solid #30363d; margin:20px 0; }
+        .section-rule { border:none; border-top:1px solid #21262d; margin:36px 0; }
+        .data-table { width:100%; border-collapse:collapse; margin:20px 0; font-size:0.92rem; }
+        .data-table th { background:#161b22; color:#58a6ff; padding:10px 14px; text-align:left; font-weight:600; border-bottom:2px solid #30363d; }
+        .data-table td { padding:9px 14px; border-bottom:1px solid #21262d; color:#c9d1d9; }
+        .data-table tr:hover td { background:#161b22; }
+        .math-block { background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:20px 24px; margin:20px 0; overflow-x:auto; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">&larr; Back to Dashboard</a>
+            <div>
+                <h1>Lab 9: Mapping 🗺️</h1>
+                <p class="lab-meta">MAE 4190 &bull; Spring 2026 &bull; Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li>
+                    <a href="#approach" style="font-weight:600;color:#58a6ff;">Approach</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#scan-strategy">Scan Strategy</a></li>
+                        <li><a href="#ble-commands">BLE Commands</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#control" style="font-weight:600;color:#58a6ff;">Orientation Control</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#pid-performance">PID Performance</a></li>
+                        <li><a href="#on-axis-video">On-Axis Turn Video</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#scans" style="font-weight:600;color:#58a6ff;">Scan Results</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#scan-neg3-neg2">Point 1: (-3, -2)</a></li>
+                        <li><a href="#scan-0-3">Point 2: (0, 3)</a></li>
+                        <li><a href="#scan-5-neg3">Point 3: (5, -3)</a></li>
+                        <li><a href="#scan-5-3">Point 4: (5, 3)</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#merge" style="font-weight:600;color:#58a6ff;">Merge &amp; Transform</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#transform-matrices">Transformation Matrices</a></li>
+                        <li><a href="#merged-plot">Merged Plot</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#line-map" style="font-weight:600;color:#58a6ff;">Line-Based Map</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#error-analysis" style="font-weight:600;color:#58a6ff;">Error Analysis</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a>
+                </li>
+            </ul>
+        </aside>
+
+        <main class="content">
+
+            <!-- ==================== APPROACH ==================== -->
+            <h2 id="approach">Approach</h2>
+
+            <h3 id="scan-strategy">Scan Strategy</h3>
+            <p>I chose <strong>orientation control</strong> (PID on integrated gyroscope yaw) for the mapping scan, reusing the PID tuning from Lab 6 (Kp&nbsp;=&nbsp;8, Kd&nbsp;=&nbsp;0.52). The robot performs incremental on-axis turns of <strong>35°</strong>, stopping at each step to take a stationary ToF reading. Since 35 does not divide 360 evenly (GCD&nbsp;=&nbsp;5), readings from successive rotations land at different angular positions. Over <strong>41 readings (~4 full rotations)</strong>, this produces 41 unique angles mod 360° with an average spacing of ~8.8° - well above the lab's minimum of ~25°.</p>
+
+            <p>The entire scan is executed autonomously on the Artemis via a state machine (<code>mapping.cpp</code>) that cycles through <strong>TURNING → SETTLING (500ms) → READING</strong> for each increment. Stopping before each ToF measurement ensures the sensor points at a fixed direction, avoiding the false readings that occur when distance changes during a measurement.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="ble-commands">BLE Commands</h3>
+            <p>Two new BLE commands were added for this lab:</p>
+
+            <table class="data-table">
+                <thead><tr><th>Command</th><th>ID</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>MAP_SCAN</code></td><td>21</td><td>Starts scan: <code>MAP_SCAN:35|41</code> → 41 readings at 35° increments</td></tr>
+                    <tr><td><code>GET_MAP_LOG</code></td><td>22</td><td>Sends logged (yaw, tof1, tof2) tuples over BLE</td></tr>
+                </tbody>
+            </table>
+
+            <p>On the Python side, a <code>run_scan()</code> helper sets gains, triggers the scan, waits for completion, and retrieves data. Each location's data is saved as JSON for offline replotting.</p>
+
+            <pre><code class="language-python">angles, tof1, tof2 = run_scan(ble, increment=35, num_readings=41,
+                                kp=8.0, ki=0.0, kd=0.52)</code></pre>
+
+            <hr class="section-rule">
+
+            <!-- ==================== CONTROL ==================== -->
+            <h2 id="control">Orientation Control</h2>
+
+            <h3 id="pid-performance">PID Performance</h3>
+            <p>The yaw check plots below compare actual gyro yaw against ideal 35° increments across all 41 readings. The error subplot shows per-step deviation. Across all scan locations, the PID achieves a <strong>mean error of ~1.3° with σ&nbsp;<&nbsp;1°</strong>, consistent over 4 full rotations. The small negative bias (~-1.3°) is expected - the 2.5° brake zone in the PID causes the robot to stop just short of each target.</p>
+
+            <div class="img-grid">
+                <figure>
+                    <img src="images/pos_neg3_neg2_yaw_check.png" alt="Yaw check at (-3,-2)">
+                    <figcaption>Point 1 (-3, -2): mean=-1.5°, std=0.5°</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/pos_0_3_yaw_check.png" alt="Yaw check at (0,3)">
+                    <figcaption>Point 2 (0, 3): mean=-1.1°, std=0.8°</figcaption>
+                </figure>
+            </div>
+            <div class="img-grid">
+                <figure>
+                    <img src="images/pos_5_neg3_yaw_check.png" alt="Yaw check at (5,-3)">
+                    <figcaption>Point 3 (5, -3): mean=-1.3°, std=0.6°</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/pos_5_3_yaw_check.png" alt="Yaw check at (5,3)">
+                    <figcaption>Point 4 (5, 3)</figcaption>
+                </figure>
+            </div>
+
+            <hr class="section-rule">
+
+            <h3 id="on-axis-video">On-Axis Turn Video</h3>
+            <p>I did not realize a video was required until writing this report, so this was recorded on a table at home rather than in the lab. The robot turns roughly on-axis with some visible drift. In the lab, the robot stayed within the 1ft × 1ft grid tiles with less drift - likely due to different surface friction and battery charge. The primary mapping error source is this on-axis drift, as the gyroscope yaw and stationary ToF readings are both very accurate.</p>
+
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/on_axis_turn.mp4" type="video/mp4">
+            </video>
+
+            <hr class="section-rule">
+
+            <!-- ==================== SCAN RESULTS ==================== -->
+            <h2 id="scans">Scan Results</h2>
+
+            <p>Scans were collected at four marked locations, all with the <strong>same starting orientation</strong> (front sensor toward +y).</p>
+
+            <h3 id="scan-neg3-neg2">Point 1: (-3, -2)</h3>
+            <div class="img-grid">
+                <figure>
+                    <img src="images/pos_neg3_neg2_polar.png" alt="Polar plot at (-3,-2)">
+                    <figcaption>Polar plot - front and side ToF</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/pos_neg3_neg2_rotations.png" alt="Rotation overlay at (-3,-2)">
+                    <figcaption>Multi-rotation overlay - readings overlap well</figcaption>
+                </figure>
+            </div>
+
+            <hr class="section-rule">
+
+            <h3 id="scan-0-3">Point 2: (0, 3)</h3>
+            <div class="img-grid">
+                <figure>
+                    <img src="images/pos_0_3_polar.png" alt="Polar plot at (0,3)">
+                    <figcaption>Polar plot - front and side ToF</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/pos_0_3_rotations.png" alt="Rotation overlay at (0,3)">
+                    <figcaption>Multi-rotation overlay</figcaption>
+                </figure>
+            </div>
+
+            <hr class="section-rule">
+
+            <h3 id="scan-5-neg3">Point 3: (5, -3)</h3>
+            <div class="img-grid">
+                <figure>
+                    <img src="images/pos_5_neg3_polar.png" alt="Polar plot at (5,-3)">
+                    <figcaption>Polar plot - front and side ToF</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/pos_5_neg3_rotations.png" alt="Rotation overlay at (5,-3)">
+                    <figcaption>Multi-rotation overlay</figcaption>
+                </figure>
+            </div>
+
+            <hr class="section-rule">
+
+            <h3 id="scan-5-3">Point 4: (5, 3)</h3>
+            <div class="img-grid">
+                <figure>
+                    <img src="images/pos_5_3_polar.png" alt="Polar plot at (5,3)">
+                    <figcaption>Polar plot - front and side ToF</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/pos_5_3_rotations.png" alt="Rotation overlay at (5,3)">
+                    <figcaption>Multi-rotation overlay</figcaption>
+                </figure>
+            </div>
+
+            <hr class="section-rule">
+
+            <!-- ==================== MERGE ==================== -->
+            <h2 id="merge">Merge &amp; Transform</h2>
+
+            <h3 id="transform-matrices">Transformation Matrices</h3>
+
+            <p>Converting sensor measurements to world coordinates requires two chained transformations.</p>
+
+            <p><strong>T1 - Sensor frame → Robot frame.</strong> The front ToF sensor is offset ~0.0635 ft (¾ inch) from the robot's center of rotation along its forward axis:</p>
+
+            <div class="math-block">
+                $$T_1 = \begin{bmatrix} 1 & 0 & 0 & 0.0635 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & 1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix}$$
+            </div>
+
+            <p><strong>T2 - Robot frame → World (inertial) frame.</strong> The robot is at known position $(x_r, y_r)$, rotated by $\theta$ (gyro yaw + initial heading $\theta_0 = 90°$ since the robot starts facing +y):</p>
+
+            <div class="math-block">
+                $$T_2 = \begin{bmatrix} \cos\theta & -\sin\theta & 0 & x_r \\ \sin\theta & \cos\theta & 0 & y_r \\ 0 & 0 & 1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix}$$
+            </div>
+
+            <p>For a ToF measurement of distance $d$, the sensor-frame point vector is:</p>
+
+            <div class="math-block">
+                $$P = \begin{bmatrix} d \\ 0 \\ 0 \\ 1 \end{bmatrix}$$
+            </div>
+
+            <p>The world-frame coordinates are then computed by chaining the transforms:</p>
+
+            <div class="math-block">
+                $$\begin{bmatrix} x_w \\ y_w \\ 0 \\ 1 \end{bmatrix} = T_2 \cdot T_1 \cdot P$$
+            </div>
+
+            <p>Which expands to the closed-form equations used in my Python code:</p>
+
+            <pre><code class="language-python">for i in range(len(angles_radians)):
+    angle = angles_radians[i]
+    d = tof_mm[i] * 0.00328084  # mm to ft
+
+    # T2: robot frame -> world frame
+    T_i = np.array([[np.cos(angle), -np.sin(angle), 0, x_r],
+                     [np.sin(angle),  np.cos(angle), 0, y_r],
+                     [0, 0, 1, 0],
+                     [0, 0, 0, 1]])
+
+    # T1: sensor frame -> robot frame
+    T_r = np.array([[1, 0, 0, 0.0635],
+                     [0, 1, 0, 0],
+                     [0, 0, 1, 0],
+                     [0, 0, 0, 1]])
+
+    p_tof = np.array([[d], [0], [0], [1]])
+
+    coords = np.matmul(T_i, np.matmul(T_r, p_tof))
+    x_coords.append(coords[0][0])
+    y_coords.append(coords[1][0])</code></pre>
+
+            <p>Since the ToF offset (0.0635 ft ≈ 19mm) is small relative to wall distances, the simplified form <code>x = x_r + d·cos(θ₀ + α)</code> produces nearly identical results.</p>
+
+            <hr class="section-rule">
+
+            <h3 id="merged-plot">Merged Plot</h3>
+            <p>All scans merged into world-frame coordinates. Circles = front sensor, × = side sensor (offset 90°), squares = robot positions.</p>
+
+            <img src="images/merged_map.png" alt="Merged map - all scan locations" class="img-full">
+
+            <hr class="section-rule">
+
+            <!-- ==================== LINE MAP ==================== -->
+            <h2 id="line-map">Line-Based Map</h2>
+
+            <p>Wall segments were manually estimated from the merged scatter plot. The outer boundary, a left-side notch, a bottom bump, and an interior box obstacle were traced. Wall endpoint lists are saved to <code>line_map.json</code> for Lab 10's simulator.</p>
+
+            <img src="images/line_map.png" alt="Line-based map" class="img-full">
+
+            <hr class="section-rule">
+
+            <!-- ==================== ERROR ANALYSIS ==================== -->
+            <h2 id="error-analysis">Error Analysis</h2>
+
+            <p>For an on-axis turn in the center of a 4×4m empty room (2m to each wall):</p>
+
+            <p><strong>Angular error:</strong> With a measured mean of ~1.3° and max of ~2.5°, positional error at 2m is 2000mm&nbsp;×&nbsp;sin(1.3°)&nbsp;≈&nbsp;<strong>45mm average</strong>, and 2000mm&nbsp;×&nbsp;sin(2.5°)&nbsp;≈&nbsp;<strong>87mm maximum</strong>.</p>
+
+            <p><strong>ToF noise:</strong> From Lab 3, ±3-11mm depending on range. At 2m, ~11mm. Combined via RSS: √(45²&nbsp;+&nbsp;11²)&nbsp;≈&nbsp;<strong>46mm total error</strong> at 2m (~1.5 inches).</p>
+
+            <div class="insight"><strong>Dominant error source:</strong> On-axis drift during turns contributes more to mapping error than sensor noise or angular accuracy. The gyro yaw is precise (~1°), the ToF is accurate when stationary, but the robot's center shifting during rotation moves the effective scan origin by 1-2cm per rotation, causing slight smearing in the merged plot.</div>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ACKNOWLEDGEMENTS ==================== -->
+            <h2 id="acknowledgements">Acknowledgements</h2>
+            <p>
+                Claude AI was used for assistance with the mapping state machine implementation, BLE command design,
+                transformation matrix code, plotting utilities, and structuring this lab report.
+                All hardware testing, data collection, PID tuning, scan execution, and wall segment estimation were done by me.
+            </p>
+
+        </main>
+    </div>
+
+    <script src="../scripts/lab-scripts.js"></script>
+    <script>hljs.highlightAll();</script>
+
+</body>
+</html>
