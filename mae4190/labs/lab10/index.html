@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 10: Grid Localization using Bayes Filter - MAE 4190</title>
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        .data-table { width:100%; border-collapse:collapse; margin:20px 0; font-size:0.92rem; }
+        .data-table th { background:#161b22; color:#58a6ff; padding:10px 14px; text-align:left; font-weight:600; border-bottom:2px solid #30363d; }
+        .data-table td { padding:9px 14px; border-bottom:1px solid #21262d; color:#c9d1d9; }
+        .data-table tr:hover td { background:#161b22; }
+        .data-table .good { color:#3fb950; font-weight:600; }
+        .data-table .warn { color:#d29922; font-weight:600; }
+        .formula-block { background:#0d1117; border:1px solid #30363d; border-left:3px solid #58a6ff; border-radius:6px; padding:16px 20px; margin:18px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:1.0rem; color:#e6edf3; line-height:2.0; }
+        .formula-block .comment { color:#8b949e; font-size:0.85rem; }
+        .insight { background:#111820; border:1px solid #1f6feb; border-radius:8px; padding:14px 18px; margin:18px 0; color:#c9d1d9; font-size:0.93rem; line-height:1.6; }
+        .insight strong { color:#58a6ff; }
+        .img-full { width:100%; border-radius:8px; border:1px solid #30363d; margin:20px 0; }
+        .section-rule { border:none; border-top:1px solid #21262d; margin:36px 0; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">&larr; Back to Dashboard</a>
+            <div>
+                <h1>Lab 10: Grid Localization using Bayes Filter</h1>
+                <p class="lab-meta">MAE 4190 &bull; Spring 2026 &bull; Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li><a href="#objective" style="font-weight:600;color:#58a6ff;">Objective</a></li>
+                <li style="margin-top:12px;">
+                    <a href="#implementation" style="font-weight:600;color:#58a6ff;">Implementation</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#compute-control">compute_control</a></li>
+                        <li><a href="#odom-motion-model">odom_motion_model</a></li>
+                        <li><a href="#prediction-step">prediction_step</a></li>
+                        <li><a href="#sensor-model">sensor_model</a></li>
+                        <li><a href="#update-step">update_step</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#results" style="font-weight:600;color:#58a6ff;">Results</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#analysis" style="font-weight:600;color:#58a6ff;">Analysis</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a>
+                </li>
+            </ul>
+        </aside>
+
+        <main class="content">
+
+            <!-- ==================== OBJECTIVE ==================== -->
+            <h2 id="objective">Objective</h2>
+
+            <p>In this lab, I implemented grid localization using a Bayes filter on a virtual robot. The robot's world is discretized into a 12 x 9 x 18 grid (x, y, theta). The filter combines noisy odometry with 18 ToF range measurements at each time step to probabilistically estimate the robot's most likely position.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== IMPLEMENTATION ==================== -->
+            <h2 id="implementation">Implementation</h2>
+
+            <p>The Bayes filter requires five functions. Each iteration runs a prediction step (using the motion model to spread belief) followed by an update step (using sensor data to sharpen it).</p>
+
+            <h3 id="compute-control">compute_control</h3>
+            <p>Extracts the control input (rotation1, translation, rotation2) from two odometry poses. Angles are normalized to [-180, 180).</p>
+
+            <pre><code class="language-python">def compute_control(cur_pose, prev_pose):
+    delta_trans = np.sqrt((cur_pose[0] - prev_pose[0])**2
+                        + (cur_pose[1] - prev_pose[1])**2)
+    delta_rot_1 = mapper.normalize_angle(
+        np.degrees(np.arctan2(cur_pose[1] - prev_pose[1],
+                              cur_pose[0] - prev_pose[0])) - prev_pose[2])
+    delta_rot_2 = mapper.normalize_angle(
+        cur_pose[2] - prev_pose[2] - delta_rot_1)
+    return delta_rot_1, delta_trans, delta_rot_2</code></pre>
+
+            <h3 id="odom-motion-model">odom_motion_model</h3>
+            <p>Computes the transition probability between two poses given the odometry control input. It compares the control that <em>would</em> be needed for the transition against what odometry actually reported, using three independent Gaussians.</p>
+
+            <pre><code class="language-python">def odom_motion_model(cur_pose, prev_pose, u):
+    rot1, trans, rot2 = compute_control(cur_pose, prev_pose)
+    prob = (loc.gaussian(rot1, u[0], loc.odom_rot_sigma)
+          * loc.gaussian(trans, u[1], loc.odom_trans_sigma)
+          * loc.gaussian(rot2, u[2], loc.odom_rot_sigma))
+    return prob</code></pre>
+
+            <h3 id="prediction-step">prediction_step</h3>
+            <p>For each possible current cell, sums the transition probability from every previous cell weighted by its belief. Cells with belief below 0.0001 are skipped to keep computation manageable.</p>
+
+            <pre><code class="language-python">def prediction_step(cur_odom, prev_odom):
+    u = compute_control(cur_odom, prev_odom)
+    for cx in range(mapper.MAX_CELLS_X):
+        for cy in range(mapper.MAX_CELLS_Y):
+            for ca in range(mapper.MAX_CELLS_A):
+                bel_bar = 0
+                cur_pose = mapper.from_map(cx, cy, ca)
+                for px in range(mapper.MAX_CELLS_X):
+                    for py in range(mapper.MAX_CELLS_Y):
+                        for pa in range(mapper.MAX_CELLS_A):
+                            if loc.bel[px][py][pa] < 0.0001:
+                                continue
+                            prev_pose = mapper.from_map(px, py, pa)
+                            bel_bar += (odom_motion_model(cur_pose, prev_pose, u)
+                                        * loc.bel[px][py][pa])
+                loc.bel_bar[cx][cy][ca] = bel_bar
+    loc.bel_bar = loc.bel_bar / np.sum(loc.bel_bar)</code></pre>
+
+            <h3 id="sensor-model">sensor_model</h3>
+            <p>Compares the robot's actual 18 range readings against the precached true readings for a given cell using a Gaussian for each measurement.</p>
+
+            <pre><code class="language-python">def sensor_model(obs):
+    prob_array = np.zeros(mapper.OBS_PER_CELL)
+    for i in range(mapper.OBS_PER_CELL):
+        prob_array[i] = loc.gaussian(loc.obs_range_data[i][0],
+                                     obs[i], loc.sensor_sigma)
+    return prob_array</code></pre>
+
+            <h3 id="update-step">update_step</h3>
+            <p>Multiplies each cell's prior belief by the product of its 18 sensor likelihoods, then normalizes.</p>
+
+            <pre><code class="language-python">def update_step():
+    for cx in range(mapper.MAX_CELLS_X):
+        for cy in range(mapper.MAX_CELLS_Y):
+            for ca in range(mapper.MAX_CELLS_A):
+                prob_array = sensor_model(mapper.obs_views[cx][cy][ca])
+                loc.bel[cx][cy][ca] = np.prod(prob_array) * loc.bel_bar[cx][cy][ca]
+    loc.bel = loc.bel / np.sum(loc.bel)</code></pre>
+
+            <hr class="section-rule">
+
+            <!-- ==================== RESULTS ==================== -->
+            <h2 id="results">Results</h2>
+
+            <p>The table below shows the filter's belief vs. ground truth at each time step.</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr><th>Step</th><th>Prob</th><th>Ground Truth (x, y)</th><th>Belief (x, y)</th><th>Error (x, y)</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>0</td><td class="good">1.00</td><td>(0.282, -0.087)</td><td>(0.305, 0.000)</td><td>(-0.023, -0.087)</td></tr>
+                    <tr><td>1</td><td class="good">1.00</td><td>(0.509, -0.533)</td><td>(0.305, -0.610)</td><td>(0.204, 0.077)</td></tr>
+                    <tr><td>2</td><td class="good">1.00</td><td>(0.509, -0.533)</td><td>(0.305, -0.610)</td><td>(0.204, 0.077)</td></tr>
+                    <tr><td>3</td><td class="good">1.00</td><td>(0.537, -0.932)</td><td>(0.610, -0.914)</td><td>(-0.073, -0.017)</td></tr>
+                    <tr><td>4</td><td class="good">1.00</td><td>(0.796, -1.073)</td><td>(0.914, -0.914)</td><td>(-0.119, -0.159)</td></tr>
+                    <tr><td>5</td><td class="good">1.00</td><td>(1.581, -0.921)</td><td>(1.524, -0.914)</td><td>(0.057, -0.006)</td></tr>
+                    <tr><td>6</td><td class="good">1.00</td><td>(1.669, -0.537)</td><td>(1.524, -0.610)</td><td>(0.145, 0.072)</td></tr>
+                    <tr><td>7</td><td class="good">1.00</td><td>(1.749, -0.186)</td><td>(1.829, -0.305)</td><td>(-0.080, 0.118)</td></tr>
+                    <tr><td>8</td><td class="warn">0.97</td><td>(1.762, 0.305)</td><td>(1.829, 0.000)</td><td>(-0.067, 0.305)</td></tr>
+                    <tr><td>9</td><td class="good">1.00</td><td>(1.770, 0.629)</td><td>(1.829, 0.914)</td><td>(-0.059, -0.285)</td></tr>
+                    <tr><td>10</td><td class="good">1.00</td><td>(1.361, 0.917)</td><td>(1.524, 0.610)</td><td>(-0.163, 0.308)</td></tr>
+                    <tr><td>11</td><td class="good">1.00</td><td>(0.480, 0.834)</td><td>(0.610, 0.914)</td><td>(-0.129, -0.081)</td></tr>
+                    <tr><td>12</td><td class="good">1.00</td><td>(0.290, 0.212)</td><td>(0.305, 0.305)</td><td>(-0.014, -0.093)</td></tr>
+                    <tr><td>13</td><td class="good">1.00</td><td>(0.034, -0.086)</td><td>(0.000, -0.305)</td><td>(0.034, 0.218)</td></tr>
+                    <tr><td>14</td><td class="good">1.00</td><td>(-0.334, -0.226)</td><td>(-0.305, -0.305)</td><td>(-0.029, 0.079)</td></tr>
+                    <tr><td>15</td><td class="good">1.00</td><td>(-0.727, -0.211)</td><td>(-0.610, -0.305)</td><td>(-0.117, 0.094)</td></tr>
+                </tbody>
+            </table>
+
+            <p>The video below shows the full run. Green is ground truth, red is odometry, and blue is the Bayes filter belief.</p>
+
+            <!-- TODO: Replace with your video file or YouTube embed -->
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/bayes_filter_run.mp4" type="video/mp4">
+            </video>
+
+            <!-- TODO: Replace with your final plotter screenshot -->
+            <img src="images/bayes_filter_result.png" alt="Bayes filter localization result" class="img-full">
+            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">Green = ground truth, Red = odometry, Blue = Bayes filter belief.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ANALYSIS ==================== -->
+            <h2 id="analysis">Analysis</h2>
+
+            <p>The filter localizes well, with most x/y errors under 0.2m (less than one grid cell of 0.3048m). It reports probability ~1.00 at nearly every step. Steps near walls or obstacles (3, 5, 12, 14) had the smallest errors, since the range measurements produce a distinctive signature that uniquely identifies the cell. The weakest steps were 8 (probability 0.97, y-error 0.305m) and 10 (y-error 0.308m), both in more open regions where range readings from neighboring cells look similar. The filter also tends to be overconfident, assigning probability 1.00 even with non-trivial error. This is expected with a coarse grid where probability mass concentrates in a single cell once the sensor model strongly favors it.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ACKNOWLEDGEMENTS ==================== -->
+            <h2 id="acknowledgements">Acknowledgements</h2>
+            <p>
+                Claude AI was used for assistance with understanding the Bayes filter algorithm,
+                debugging simulator setup (tkinter, Box2D),
+                and structuring this report.
+                All simulator runs, data collection, and video recording were done by me.
+            </p>
+
+        </main>
+    </div>
+
+    <script src="../scripts/lab-scripts.js"></script>
+    <script>hljs.highlightAll();</script>
+
+</body>
+</html>
