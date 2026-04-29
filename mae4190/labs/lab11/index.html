@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 11: Localization on the Real Robot - MAE 4190</title>
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        .data-table { width:100%; border-collapse:collapse; margin:20px 0; font-size:0.92rem; }
+        .data-table th { background:#161b22; color:#58a6ff; padding:10px 14px; text-align:left; font-weight:600; border-bottom:2px solid #30363d; }
+        .data-table td { padding:9px 14px; border-bottom:1px solid #21262d; color:#c9d1d9; }
+        .data-table tr:hover td { background:#161b22; }
+        .data-table .good { color:#3fb950; font-weight:600; }
+        .data-table .warn { color:#d29922; font-weight:600; }
+        .insight { background:#111820; border:1px solid #1f6feb; border-radius:8px; padding:14px 18px; margin:18px 0; color:#c9d1d9; font-size:0.93rem; line-height:1.6; }
+        .insight strong { color:#58a6ff; }
+        .img-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0; }
+        .img-grid figure { margin:0; }
+        .img-grid img { width:100%; border-radius:8px; border:1px solid #30363d; }
+        .img-grid figcaption { font-size:0.82rem; color:#8b949e; text-align:center; margin-top:6px; }
+        .img-full { width:100%; border-radius:8px; border:1px solid #30363d; margin:20px 0; }
+        .section-rule { border:none; border-top:1px solid #21262d; margin:36px 0; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">&larr; Back to Dashboard</a>
+            <div>
+                <h1>Lab 11: Localization on the Real Robot</h1>
+                <p class="lab-meta">MAE 4190 &bull; Spring 2026 &bull; Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li><a href="#objective" style="font-weight:600;color:#58a6ff;">Objective</a></li>
+                <li style="margin-top:12px;">
+                    <a href="#sim-test" style="font-weight:600;color:#58a6ff;">Simulation Test</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#implementation" style="font-weight:600;color:#58a6ff;">Implementation</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#arduino-changes">Arduino Changes</a></li>
+                        <li><a href="#observation-loop">Observation Loop</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#results" style="font-weight:600;color:#58a6ff;">Results</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#analysis" style="font-weight:600;color:#58a6ff;">Analysis</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a>
+                </li>
+            </ul>
+        </aside>
+
+        <main class="content">
+
+            <!-- ==================== OBJECTIVE ==================== -->
+            <h2 id="objective">Objective</h2>
+
+            <p>This lab takes the Bayes filter from Lab 10 and runs it on the real robot. The big difference is that we only run the update step. In simulation, the prediction step was useful because the virtual robot's odometry was noisy but still somewhat informative. On the real robot, the motors are so inconsistent that odometry predictions would actually make things worse. So the approach is simpler: place the robot at a known position, have it spin and collect 18 ToF readings, and see if the update step alone can figure out where it is purely from what it sees.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== SIM TEST ==================== -->
+            <h2 id="sim-test">Simulation Test</h2>
+
+            <p>Before touching the real robot, I ran the provided optimized Bayes filter in simulation using <code>lab11_sim.ipynb</code> to confirm everything works. The belief (blue) tracks ground truth (green) closely, which gave me confidence that the localization code is correct before introducing real-world sensor noise.</p>
+
+            <!-- TODO: Replace with your sim screenshot -->
+            <img src="images/sim_result.png" alt="Simulation localization result" class="img-full">
+            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">Green = ground truth, Red = odometry, Blue = belief.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== IMPLEMENTATION ==================== -->
+            <h2 id="implementation">Implementation</h2>
+
+            <h3 id="arduino-changes">Arduino Changes</h3>
+
+            <p>I reused my <code>MAP_SCAN</code> BLE command from Lab 9, which uses orientation PID to spin the robot and takes a front ToF reading at each angular increment. My Lab 9 code started readings at the first increment (20 degrees), but localization expects the first reading at 0 degrees. I changed <code>map_target_angle</code> in <code>startMapScan()</code> from <code>map_increment</code> to <code>0</code>, and updated the angle advancement in <code>runMapStep()</code> accordingly. The robot now takes readings at 0, 20, 40, ... 340 degrees.</p>
+
+            <p>PID gains are Kp=9.0, Ki=0.0, Kd=0.52 (same as Lab 9). The settle time is 500ms per reading, which I found necessary to let the robot stop oscillating before taking a measurement.</p>
+
+            <h3 id="observation-loop">Observation Loop</h3>
+
+            <p>The <code>perform_observation_loop</code> function handles the BLE communication. It sets up a notification handler that parses incoming sensor readings in the format <code>MAP:A:&lt;angle&gt;|D1:&lt;tof1_mm&gt;|D2:&lt;tof2_mm&gt;</code>, storing just the angle and front ToF distance (D1). I only use the front sensor since the localization model expects one range measurement per direction. The handler also tracks status messages like <code>MAP_DONE</code> to detect when the scan is complete. After sending <code>MAP_SCAN</code> with parameters <code>20|18</code>, I wait for completion, then call <code>GET_MAP_LOG</code> to retrieve all readings. The readings are sorted by angle, converted from mm to meters, and returned as a numpy column array. Invalid readings (where the ToF returns -1) are filtered out during post-processing since the localization code only needs valid distance values.</p>
+
+            <pre><code class="language-python">def perform_observation_loop(self, rot_vel=120):
+    map_angles = []
+    map_tof1 = []
+    map_status = []
+
+    # BLE handler: parse sensor readings, track scan status
+    def map_handler(uuid, bytearray_data):
+        data = bytearray_data.decode('utf-8')
+        if data.startswith("MAP:A:"):
+            try:
+                a_str  = data[data.find("A:")+2  : data.find("|D1:")]
+                d1_str = data[data.find("D1:")+3 : data.find("|D2:")]
+                map_angles.append(float(a_str))
+                map_tof1.append(int(d1_str))
+            except Exception as e:
+                print(f"Parse error: {e}")
+        else:
+            map_status.append(data)
+            print(data)
+
+    self.ble.start_notify(self.ble.uuid['RX_STRING'], map_handler)
+
+    # Set orientation PID gains (tuned in Lab 9)
+    self.ble.send_command(CMD.SET_PID_GAINS, "9.0|0.0|0.52")
+    time.sleep(1)
+
+    # Start scan: 18 readings at 20 degree increments
+    self.ble.send_command(CMD.MAP_SCAN, "20|18")
+    print("Scan started: 20 deg x 18 readings")
+
+    # Wait for scan to finish
+    t0 = time.time()
+    while time.time() - t0 < 60:
+        if any("MAP_DONE" in s for s in map_status):
+            print("Scan finished!")
+            break
+        time.sleep(1)
+    else:
+        print("WARNING: scan timed out")
+
+    time.sleep(2)
+
+    # Retrieve logged data
+    self.ble.send_command(CMD.GET_MAP_LOG, "")
+    print("Requesting map log...")
+    time.sleep(10)
+    self.ble.stop_notify(self.ble.uuid['RX_STRING'])
+    print(f"Received {len(map_tof1)} readings")
+
+    # Sort by angle, convert mm to meters
+    if len(map_tof1) >= 18:
+        paired = sorted(zip(map_angles, map_tof1), key=lambda x: x[0])
+        distances_mm = [d for _, d in paired[:18]]
+    else:
+        distances_mm = map_tof1
+
+    distances_m = []
+    for d in distances_mm:
+        if d > 0:
+            distances_m.append(d / 1000.0)
+        else:
+            distances_m.append(0)  # fallback for invalid readings
+
+    sensor_ranges = np.array(distances_m)[np.newaxis].T
+    sensor_bearings = np.array([])[np.newaxis].T
+    return sensor_ranges, sensor_bearings</code></pre>
+
+            <hr class="section-rule">
+
+            <!-- ==================== RESULTS ==================== -->
+            <h2 id="results">Results</h2>
+
+            <p>I placed the robot at each of the four marked positions facing 0 degrees (along +x), ran the scan, and compared the filter's belief to the known ground truth.</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr><th>Position (ft)</th><th>Ground Truth (m)</th><th>Belief (m, m, deg)</th><th>XY Error (m)</th><th>Prob</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>(-3, -2)</td><td>(-0.914, -0.610)</td><td>(-0.914, -0.610, 10.0)</td><td class="good">(0, 0)</td><td class="good">1.00</td></tr>
+                    <tr><td>(0, 3)</td><td>(0, 0.914)</td><td>(0, 0.914, -10.0)</td><td class="good">(0, 0)</td><td class="good">1.00</td></tr>
+                    <tr><td>(5, -3)</td><td>(1.524, -0.914)</td><td>(1.524, -0.914, -90.0)</td><td class="good">(0, 0)</td><td class="good">1.00</td></tr>
+                    <tr><td>(5, 3)</td><td>(1.524, 0.914)</td><td>(1.524, 0.610, -10.0)</td><td class="warn">(0, 0.304)</td><td class="good">1.00</td></tr>
+                </tbody>
+            </table>
+
+            <div class="insight"><strong>Note on theta values:</strong> The ground truth heading is 0 degrees for all positions. The theta grid has 20 degree cells, so the cell centers are at ... -10, 10, 30 ... and 0 degrees is not a cell center. The filter picking 10 or -10 degrees is the closest it can get, which is only half a grid cell off.</div>
+
+            <div class="insight"><strong>Note on (5, -3) heading:</strong> The belief says -90 degrees because I accidentally placed the robot rotated 90 degrees at that position. The x,y localization was still correct.</div>
+
+            <div class="img-grid">
+                <figure>
+                    <!-- TODO: Replace with your screenshots -->
+                    <img src="images/pos_neg3_neg2.png" alt="(-3,-2) result">
+                    <figcaption>(-3, -2): Belief overlaps ground truth.</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/pos_0_3.png" alt="(0,3) result">
+                    <figcaption>(0, 3): Belief overlaps ground truth.</figcaption>
+                </figure>
+            </div>
+
+            <div class="img-grid">
+                <figure>
+                    <img src="images/pos_5_neg3.png" alt="(5,-3) result">
+                    <figcaption>(5, -3): Belief overlaps ground truth.</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/pos_5_3.png" alt="(5,3) result">
+                    <figcaption>(5, 3): Belief one grid cell below ground truth.</figcaption>
+                </figure>
+            </div>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ANALYSIS ==================== -->
+            <h2 id="analysis">Analysis</h2>
+
+            <p>Three out of four positions localized perfectly. I was surprised by how well it worked given that we are only using the update step with no motion information.</p>
+
+            <p>The one position that consistently failed was (5, 3), off by one grid cell in y (0.304m). I ran it four times and got the same result every time. This position is in the upper-right area near the top wall, right wall, and interior box. The cell one below at (5, 2) has a very similar view of the surroundings: the right wall and interior box are at about the same distance from both cells. The only real difference is the distance to the top wall (about 1 foot closer from (5, 3)), which may not be enough for the ToF sensor to reliably distinguish.</p>
+
+            <p>Several classmates had the same one-cell deviation at (5, 3), including students from prior years. If it were random sensor noise, different robots would fail differently. Everyone getting the same wrong answer suggests either the precached sensor data (<code>obs_views</code>) for that region is slightly off, or the ToF sensor consistently reads shorter/longer at those distances in a way that biases results. Either way, the sensors are impressively consistent across robots. They are all wrong in the exact same way, pointing to a systematic issue rather than random noise.</p>
+
+            <p>The positions that worked well are all geometrically distinctive. (-3, -2) is near the step in the left wall, (0, 3) is near the top wall and that same step, (5, -3) is near the bottom-right corner with the rectangular bump. These features create sensor signatures that no other grid cell can replicate.</p>
+
+            <div class="insight"><strong>On overconfidence:</strong> The filter reports probability 1.0 even at (5, 3) where it gets the wrong cell. This is because the update step multiplies 18 Gaussian likelihoods together and normalizes, so even a small advantage in one cell's match over all others gets amplified into near-certainty. The filter is confident but wrong, which is a known limitation of grid-based approaches with coarse resolution.</div>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ACKNOWLEDGEMENTS ==================== -->
+            <h2 id="acknowledgements">Acknowledgements</h2>
+            <p>
+                Claude AI was used for assistance in structuring this report. 
+                Robot testing, data collection, and localization result analysis were done by me.
+            </p>
+
+        </main>
+    </div>
+
+    <script src="../scripts/lab-scripts.js"></script>
+    <script>hljs.highlightAll();</script>
+
+</body>
+</html>
