@@ -19,6 +19,10 @@
         .insight { background:#111820; border:1px solid #1f6feb; border-radius:8px; padding:14px 18px; margin:18px 0; color:#c9d1d9; font-size:0.93rem; line-height:1.6; }
         .insight strong { color:#58a6ff; }
         .img-full { width:100%; border-radius:8px; border:1px solid #30363d; margin:20px 0; }
+        .img-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0; }
+        .img-grid figure { margin:0; }
+        .img-grid img { width:100%; border-radius:8px; border:1px solid #30363d; }
+        .img-grid figcaption { font-size:0.82rem; color:#8b949e; text-align:center; margin-top:6px; }
         .section-rule { border:none; border-top:1px solid #21262d; margin:36px 0; }
     </style>
 </head>
@@ -38,32 +42,21 @@
             <h2>Contents</h2>
             <ul>
                 <li><a href="#objective" style="font-weight:600;color:#58a6ff;">Objective</a></li>
-                <li style="margin-top:12px;">
-                    <a href="#approach" style="font-weight:600;color:#58a6ff;">Approach</a>
-                </li>
+                <li style="margin-top:12px;"><a href="#approach" style="font-weight:600;color:#58a6ff;">Approach</a></li>
                 <li style="margin-top:12px;">
                     <a href="#controller" style="font-weight:600;color:#58a6ff;">Controller Design</a>
                     <ul style="margin-left:12px;margin-top:8px;">
-                        <li><a href="#pitch-pid">Pitch PD</a></li>
                         <li><a href="#dynamics">Dynamics</a></li>
+                        <li><a href="#pitch-pid">PID Implementation</a></li>
                         <li><a href="#gain-tuning">Gain Tuning</a></li>
                     </ul>
                 </li>
-                <li style="margin-top:12px;">
-                    <a href="#jupyter" style="font-weight:600;color:#58a6ff;">Jupyter Integration</a>
-                </li>
-                <li style="margin-top:12px;">
-                    <a href="#debugging" style="font-weight:600;color:#58a6ff;">Debugging</a>
-                </li>
-                <li style="margin-top:12px;">
-                    <a href="#results" style="font-weight:600;color:#58a6ff;">Results</a>
-                </li>
-                <li style="margin-top:12px;">
-                    <a href="#discussion" style="font-weight:600;color:#58a6ff;">Discussion</a>
-                </li>
-                <li style="margin-top:12px;">
-                    <a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a>
-                </li>
+                <li style="margin-top:12px;"><a href="#battery" style="font-weight:600;color:#58a6ff;">Battery Voltage</a></li>
+                <li style="margin-top:12px;"><a href="#jupyter" style="font-weight:600;color:#58a6ff;">Jupyter Integration</a></li>
+                <li style="margin-top:12px;"><a href="#debugging" style="font-weight:600;color:#58a6ff;">Debugging</a></li>
+                <li style="margin-top:12px;"><a href="#results" style="font-weight:600;color:#58a6ff;">Results</a></li>
+                <li style="margin-top:12px;"><a href="#discussion" style="font-weight:600;color:#58a6ff;">Discussion</a></li>
+                <li style="margin-top:12px;"><a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a></li>
             </ul>
         </aside>
 
@@ -79,16 +72,51 @@
             <!-- ==================== APPROACH ==================== -->
             <h2 id="approach">Approach</h2>
 
-            <p>We chose to start the robot in the upright position and stabilize it with a PD controller, rather than attempting to drive forward and flip into a wheelie. This allowed us to isolate the balance controller without also needing to time the flip. One person holds the robot upright while another runs the <code>BALANCE</code> command from the Jupyter notebook, which provides a three-second countdown. At the moment the command arrives, the firmware zeroes the integrated pitch so the current orientation becomes the 0&deg; setpoint.</p>
+            <p>We chose to start the robot in the upright position and stabilize it with a PID controller, rather than attempting to drive forward and flip into a wheelie. This allowed us to isolate the balance controller without also needing to time the flip. One person holds the robot upright while another runs the <code>BALANCE</code> command from the Jupyter notebook, which provides a three-second countdown. At the moment the command arrives, the firmware zeroes the integrated pitch so the current orientation becomes the 0&deg; setpoint.</p>
 
             <hr class="section-rule">
 
             <!-- ==================== CONTROLLER ==================== -->
             <h2 id="controller">Controller Design</h2>
 
-            <h3 id="pitch-pid">Pitch PD</h3>
+            <h3 id="dynamics">Inverted Pendulum Dynamics</h3>
 
-            <p>The balance controller is implemented in <code>runPitchPID()</code> in <code>pid.cpp</code> and runs when <code>pid_mode == 2</code>. Each iteration reads the IMU, integrates <code>gyrY()</code> to obtain the current pitch angle, and computes a motor command from the error relative to the 0&deg; setpoint.</p>
+            <p>An inverted pendulum is inherently unstable. When the robot tilts by angle &theta; from vertical, gravity exerts a restoring torque. For a rigid body pivoting about the wheel axle, the rotational equation of motion is:</p>
+
+            <div class="formula-block">
+                I &middot; &theta;&uml; = m &middot; g &middot; L &middot; sin(&theta;) &minus; &tau;<sub>motor</sub> &minus; c &middot; &theta;&#775;
+                <br><br>
+                <span class="comment">I = moment of inertia about axle</span><br>
+                <span class="comment">m = robot mass, g = 9.81 m/s&sup2;</span><br>
+                <span class="comment">L = distance from axle to center of mass</span><br>
+                <span class="comment">&tau;<sub>motor</sub> = torque from wheels pushing the ground</span><br>
+                <span class="comment">c = damping coefficient (friction, air resistance)</span>
+            </div>
+
+            <p>For small angles, sin(&theta;) &asymp; &theta;, which linearizes the system:</p>
+
+            <div class="formula-block">
+                &theta;&uml; = (m&middot;g&middot;L / I) &middot; &theta; &minus; (1/I) &middot; &tau;<sub>motor</sub> &minus; (c/I) &middot; &theta;&#775;
+            </div>
+
+            <p>In state-space form with state vector x = [&theta;, &theta;&#775;] and input u = &tau;<sub>motor</sub>:</p>
+
+            <div class="formula-block">
+                x&#775; = A&middot;x + B&middot;u
+                <br><br>
+                A = [[0, 1], [m&middot;g&middot;L/I, -c/I]]<br>
+                B = [[0], [-1/I]]
+            </div>
+
+            <p>The positive eigenvalue in A confirms the system is open-loop unstable: without active control, any perturbation from vertical grows exponentially. The PID controller provides u to counteract this by applying a corrective torque through the wheels. The P term acts as a restoring spring (pushes back proportionally to tilt), the D term acts as a damper (resists angular velocity to prevent overshoot), and the I term corrects any persistent offset from the setpoint.</p>
+
+            <div class="insight">
+                <strong>Key observation:</strong> The small-angle approximation breaks down beyond ~10&deg;. Past that threshold, the actual gravitational torque (proportional to sin(&theta;)) grows faster than the linear model predicts, so the controller underestimates the required correction. This matched our experimental results: the robot could recover from tilts under 10&deg; reliably, but anything beyond that was increasingly difficult to save.
+            </div>
+
+            <h3 id="pitch-pid">PID Implementation</h3>
+
+            <p>The balance controller is implemented in <code>runPitchPID()</code> in <code>pid.cpp</code> and runs when <code>pid_mode == 2</code>. Each iteration reads the IMU, integrates <code>gyrY()</code> using <code>micros()</code> precision to obtain the current pitch angle, and computes a motor command:</p>
 
             <pre><code class="language-cpp">// Integrate gyro for pitch
 unsigned long now_us = micros();
@@ -119,92 +147,118 @@ if ((abs(error) <= 2.5) || (abs(error) >= 87.5)) {
     brakeMotors();
 }</code></pre>
 
-            <p>The P term provides a restoring force proportional to the tilt angle. The D term uses the raw gyro angular rate directly rather than numerically differentiating the error, which avoids amplifying high-frequency noise. A small LPF threshold zeros out tiny D values to reduce motor chatter. A deadband prevents the motors from buzzing at very small error values, and a brake zone is active within 2.5&deg; of the setpoint. The controller also brakes if the error exceeds 87.5&deg;, indicating a fall. No integral term was used, as the balance point does not drift on a flat surface.</p>
-
-            <h3 id="dynamics">Inverted Pendulum Dynamics</h3>
-
-            <p>An inverted pendulum is inherently unstable. When the robot tilts by angle &theta; from vertical, gravity exerts a torque proportional to sin(&theta;) pulling it further away. For small angles sin(&theta;) &asymp; &theta;, giving the linearized equation of motion:</p>
-
-            <div class="formula-block">
-                &theta;&uml; = (g / L) &middot; &theta; &minus; (1 / L) &middot; u
-                <br>
-                <span class="comment">g = gravitational acceleration, L = pendulum length (axle to CoM), u = wheel correction</span>
-            </div>
-
-            <p>The PD controller computes u = Kp&middot;e + Kd&middot;(de/dt). The P term acts as a restoring spring; the D term acts as a damper that prevents overshoot. Together they approximate a stable second-order system around the upright equilibrium.</p>
-
-            <div class="insight">
-                <strong>Key observation:</strong> The small-angle approximation breaks down beyond ~10&deg;. Past that threshold, the actual gravitational torque grows faster than the linear model predicts, so the controller underestimates the required correction. This matched our experimental results.
-            </div>
+            <p>The D term uses the raw gyro angular rate directly rather than numerically differentiating the error, which avoids amplifying high-frequency noise. A small threshold zeros out tiny D values to reduce motor chatter. The controller brakes within 2.5&deg; of setpoint to prevent jitter from the deadband, and also brakes if error exceeds 87.5&deg; (the robot has fallen and further driving would just send it across the floor). The I term includes anti-windup clamping at +/-300 to prevent integral saturation during large sustained errors.</p>
 
             <h3 id="gain-tuning">Gain Tuning</h3>
 
-            <p>Gains were sent over BLE using <code>SET_PID_GAINS</code>, allowing tuning without reflashing. Over 20+ runs we adjusted values until the robot could balance. With low Kp the robot fell immediately on the first tilt with no oscillation. Kp was increased until it could push back, then Kd was added to damp the response.</p>
+            <p>Gains were sent over BLE using <code>SET_PID_GAINS</code>, allowing tuning without reflashing. Over 20+ runs we adjusted values on carpet until the robot could balance. With low Kp the robot fell immediately with no oscillation. Kp was increased until it could push back, Kd was added to damp the oscillation, and Ki was added last to correct persistent lean.</p>
 
-            <table class="data-table">
-                <thead>
-                    <tr><th>Surface</th><th>Kp</th><th>Ki</th><th>Kd</th><th>Notes</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td>Carpet</td><td class="good">3</td><td>0</td><td class="good">2</td><td>Extra friction helps wheels grip</td></tr>
-                    <tr><td>Hardwood</td><td class="warn">8</td><td>0</td><td class="warn">3</td><td>Wheels slip more, needs stronger correction</td></tr>
-                </tbody>
-            </table>
+            <p>Final gains: <strong>Kp = 12.25, Ki = 0.8, Kd = 0.75</strong></p>
+
+            <h3 id="physical">Physical Modifications</h3>
+
+            <p>To improve stability, we added screws into the battery compartment to increase the total mass and lower the center of mass. A lower center of mass moves the pendulum's pivot point closer to the center of gravity, reducing the gravitational torque for a given tilt angle and giving the controller more time to react.</p>
+
+            <p>We also experimented with IMU placement. With the IMU mounted at the top of the robot (furthest from the axle), the controller felt noticeably more responsive than with the IMU at the bottom. This makes physical sense: angular acceleration is the same everywhere on a rigid body, but the linear acceleration experienced by the IMU increases with distance from the pivot. At radius r from the axle, the tangential acceleration is a = r &middot; &alpha;, where &alpha; is the angular acceleration. A larger r amplifies the acceleration signal the IMU sees, effectively giving the sensor a higher signal-to-noise ratio for small tilts. The tradeoff is that this placed the heavier battery pack (with screws) at the top, which raises the center of mass and makes the pendulum less stable. In practice, the improved sensor responsiveness seemed to outweigh the stability penalty, though we did not test this rigorously enough to confirm objectively.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== BATTERY ==================== -->
+            <h2 id="battery">Battery Voltage: The Hidden Variable</h2>
+
+            <p>One of the most important findings from this lab was the dramatic effect of battery voltage on controller performance. The 850mAh motor LiPo has high internal resistance, and at 3.9V (partially depleted), the same PWM commands produced noticeably less torque. The robot would fall over using gain values that had worked minutes earlier. We spent significant time re-tuning gains, thinking the controller was broken, before realizing the battery had sagged.</p>
+
+            <p>After charging the battery to 4.20V (full), the exact same code with the exact same PID constants performed dramatically better. The robot went from barely balancing for 2-3 seconds to consistently holding for 5+ seconds. No code changes at all. This highlights that for a system operating at the edge of its control authority (inverted pendulum with cheap motors), the power supply is just as critical as the control algorithm. For future work, monitoring battery voltage in real-time and scaling the PID output accordingly would make the controller robust to charge level.</p>
+
+            <div class="insight">
+                <strong>Lesson learned:</strong> If your controller suddenly stops working and you haven't changed the code, check the battery voltage before re-tuning gains. A 0.3V drop (3.9V to 4.2V) was the difference between immediate failure and stable balancing.
+            </div>
 
             <hr class="section-rule">
 
             <!-- ==================== JUPYTER ==================== -->
             <h2 id="jupyter">Jupyter Integration</h2>
 
-            <p>The notebook <code>balance_run.ipynb</code> handles the full workflow over BLE: set gains with <code>SET_PID_GAINS</code>, start the run with <code>BALANCE</code> after a 3-second countdown, wait for the firmware timeout (10 s, set by <code>pid_duration</code>), then pull logged data with <code>GET_PID_LOG</code>. Each log line contains a timestamp, pitch angle, and motor command. The notebook parses these into a DataFrame and generates plots.</p>
+            <p>The notebook handles the full workflow over BLE: set gains with <code>SET_PID_GAINS</code>, start the run with <code>BALANCE</code> after a 3-second countdown, wait for the firmware timeout (10s), then pull logged data with <code>GET_PID_LOG</code>. Each log line contains a timestamp, pitch angle, and motor command.</p>
 
-            <pre><code class="language-python"># Set gains remotely
-KP, KI, KD = 3, 0, 2
-ble.send_command(CMD.SET_PID_GAINS, f"{KP}|{KI}|{KD}")
+            <pre><code class="language-python">ble.send_command(CMD.SET_PID_GAINS, "12.25|.8|.75")
+time.sleep(1)
 
-# Countdown then start
-for i in range(3, 0, -1):
-    print(f"Starting balance in {i} ...")
-    time.sleep(1.0)
-ble.send_command(CMD.BALANCE, "0")</code></pre>
+T.clear()
+PITCH.clear()
+MOT.clear()
 
-            <p>One firmware fix was required: <code>GET_PID_LOG</code> in <code>commands.cpp</code> was sending <code>pid_yaw_array</code> for all non-position modes, but the balance controller writes to <code>pid_pitch_array</code>. A conditional check for <code>pid_mode == 2</code> was added so the correct data array is transmitted.</p>
+ble.send_command(CMD.BALANCE, "")
+time.sleep(12)
+
+ble.send_command(CMD.GET_PID_LOG, "")
+time.sleep(15)</code></pre>
+
+            <p>One firmware fix was required: <code>GET_PID_LOG</code> was sending <code>pid_yaw_array</code> for all non-position modes, but the balance controller writes to <code>pid_pitch_array</code>. A conditional check for <code>pid_mode == 2</code> was added so the correct data array is transmitted.</p>
 
             <hr class="section-rule">
 
             <!-- ==================== DEBUGGING ==================== -->
             <h2 id="debugging">Debugging</h2>
 
-            <p>Several early attempts failed because the D term was reading <code>gyrZ()</code> instead of <code>gyrY()</code> for the derivative. The derivative was responding to the wrong rotational axis entirely. Once the axis was corrected, the damping behavior worked as expected.</p>
+            <p>Several early attempts failed because the D term was reading <code>gyrZ()</code> (yaw axis) instead of <code>gyrY()</code> (pitch axis). The derivative was responding to the wrong rotational axis entirely, so the damping had no effect on pitch oscillation. Once corrected, the controller immediately showed improved stability.</p>
 
-            <p>BLE integration required effort since each team member had a different coding style. My robot also had a recurring issue where it would disconnect immediately after the balance command was sent. After troubleshooting the connection flow, this was resolved.</p>
+            <p>BLE integration required effort since each team member had a different coding style. The robot also had a recurring issue where it would disconnect immediately after the balance command was sent. After troubleshooting the connection flow, this was resolved.</p>
 
             <hr class="section-rule">
 
             <!-- ==================== RESULTS ==================== -->
             <h2 id="results">Results</h2>
 
-            <!-- TODO: Replace with your video file -->
+            <p>Best run (Run 2): the robot balanced for just over 5 seconds before it drifted into an obstacle and fell. The robot stayed upright with some visible twitching as the controller made small corrections back and forth. Within ~10&deg; of the setpoint, corrections were quick and consistent. But once it tilted past that band, recovery became much less reliable, and the robot eventually tipped too far to the left. This was a consistent failure mode across runs; it almost always fell to the left, suggesting either a slight mechanical asymmetry, accumulated gyro bias, or even that our right-hand dominance caused us to consistently release the robot with a slight leftward lean.</p>
+
+            <p>Interestingly, the robot was surprisingly good at recovering after minor crashes. On several runs, it would hit an obstacle, bounce back, and continue balancing for a few more seconds before eventually falling.</p>
+
             <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
-                <source src="videos/TODO_VIDEO_FILE" type="video/mp4">
+                <source src="videos/balance_run2.mp4" type="video/mp4">
             </video>
 
-            <p>The best run achieved approximately 7 seconds of balancing. The robot remained upright with visible twitching as the controller made small corrections. Within about 10&deg; of the setpoint, corrections were quick and consistent. Beyond that range, recovery became unreliable, and the robot eventually tipped too far to the left and fell. The leftward bias was consistent across runs, suggesting a mechanical asymmetry or accumulated gyro bias.</p>
+            <img src="images/balance_plot2.png" alt="Best run: pitch and motor" class="img-full">
+            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">Best run. Top: pitch angle. Bottom: motor PWM. Gains: Kp=12.25, Ki=0.8, Kd=0.75.</p>
 
-            <img src="images/L12_balance_plot.png" alt="Pitch angle and motor command" class="img-full">
-            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">Top: pitch angle from integrated gyro. Bottom: motor PWM command. Gains: Kp=3, Ki=0, Kd=2.</p>
+            <p>Additional runs:</p>
 
-            <img src="images/L12_error_plot.png" alt="Tracking error" class="img-full">
-            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">Tracking error relative to the 0&deg; setpoint over the duration of the run.</p>
+            <div class="img-grid">
+                <figure>
+                    <video controls style="width:100%;border-radius:8px;border:1px solid #30363d;">
+                        <source src="videos/balance_run1.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>Run 1: ~8s, drifted and fell</figcaption>
+                </figure>
+                <figure>
+                    <video controls style="width:100%;border-radius:8px;border:1px solid #30363d;">
+                        <source src="videos/balance_run3.mp4" type="video/mp4">
+                    </video>
+                    <figcaption>Run 3: fell at 6s, partially recovered</figcaption>
+                </figure>
+            </div>
+
+            <div class="img-grid">
+                <figure>
+                    <img src="images/balance_plot1.png" alt="Run 1 plot">
+                    <figcaption>Run 1: balanced ~8s then drifted</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/balance_plot3.png" alt="Run 3 plot">
+                    <figcaption>Run 3: fell at 6s, partial recovery</figcaption>
+                </figure>
+            </div>
 
             <hr class="section-rule">
 
             <!-- ==================== DISCUSSION ==================== -->
             <h2 id="discussion">Discussion</h2>
 
-            <p>The controller demonstrated short-duration balancing. The primary limitation is gyro drift from integrating angular rate to obtain pitch. Any sensor bias accumulates over time and shifts the effective setpoint. A complementary filter combining gyro and accelerometer data would mitigate this but was not implemented.</p>
+            <p>The controller demonstrated short-duration balancing at the edge of the system's control authority. The primary limitation is gyro drift from integrating angular rate. Any sensor bias accumulates over time and shifts the effective setpoint, causing the robot to lean progressively in one direction. A complementary filter combining gyro and accelerometer pitch data would mitigate this, and DMP integration (as discussed in Lab 6) would provide a drift-free pitch estimate.</p>
 
-            <p>The consistent leftward fall could be addressed by applying a small offset to the setpoint to compensate for the asymmetry. This was attempted briefly but there were not enough runs to calibrate the offset.</p>
+            <p>The consistent leftward fall across runs could stem from mechanical asymmetry (uneven weight distribution or motor strength), accumulated gyro bias, or even operator bias from consistently releasing the robot with a slight lean. A small setpoint offset could compensate, but we did not have enough runs to calibrate this precisely. The inverted pendulum problem also demands faster control loops than our previous labs; the ~8ms loop time was adequate for orientation control but borderline for balancing, where the instability grows exponentially with response delay.</p>
+
+            <p>The most impactful future improvement would be real-time battery voltage monitoring with gain scaling, since as shown above, a 0.3V difference completely changes the system's behavior without any code changes.</p>
 
             <hr class="section-rule">
 
