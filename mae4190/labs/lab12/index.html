@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 12: Inverted Pendulum - MAE 4190</title>
+    <link rel="stylesheet" href="../styles/lab-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        .data-table { width:100%; border-collapse:collapse; margin:20px 0; font-size:0.92rem; }
+        .data-table th { background:#161b22; color:#58a6ff; padding:10px 14px; text-align:left; font-weight:600; border-bottom:2px solid #30363d; }
+        .data-table td { padding:9px 14px; border-bottom:1px solid #21262d; color:#c9d1d9; }
+        .data-table tr:hover td { background:#161b22; }
+        .data-table .good { color:#3fb950; font-weight:600; }
+        .data-table .warn { color:#d29922; font-weight:600; }
+        .formula-block { background:#0d1117; border:1px solid #30363d; border-left:3px solid #58a6ff; border-radius:6px; padding:16px 20px; margin:18px 0; font-family:'JetBrains Mono','Courier New',monospace; font-size:1.0rem; color:#e6edf3; line-height:2.0; }
+        .formula-block .comment { color:#8b949e; font-size:0.85rem; }
+        .insight { background:#111820; border:1px solid #1f6feb; border-radius:8px; padding:14px 18px; margin:18px 0; color:#c9d1d9; font-size:0.93rem; line-height:1.6; }
+        .insight strong { color:#58a6ff; }
+        .img-full { width:100%; border-radius:8px; border:1px solid #30363d; margin:20px 0; }
+        .section-rule { border:none; border-top:1px solid #21262d; margin:36px 0; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="../../" class="back-link">&larr; Back to Dashboard</a>
+            <div>
+                <h1>Lab 12: Inverted Pendulum (Wheelie)</h1>
+                <p class="lab-meta">MAE 4190 &bull; Spring 2026 &bull; Rajarshi Das</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li><a href="#objective" style="font-weight:600;color:#58a6ff;">Objective</a></li>
+                <li style="margin-top:12px;">
+                    <a href="#approach" style="font-weight:600;color:#58a6ff;">Approach</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#controller" style="font-weight:600;color:#58a6ff;">Controller Design</a>
+                    <ul style="margin-left:12px;margin-top:8px;">
+                        <li><a href="#pitch-pid">Pitch PD</a></li>
+                        <li><a href="#dynamics">Dynamics</a></li>
+                        <li><a href="#gain-tuning">Gain Tuning</a></li>
+                    </ul>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#jupyter" style="font-weight:600;color:#58a6ff;">Jupyter Integration</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#debugging" style="font-weight:600;color:#58a6ff;">Debugging</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#results" style="font-weight:600;color:#58a6ff;">Results</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#discussion" style="font-weight:600;color:#58a6ff;">Discussion</a>
+                </li>
+                <li style="margin-top:12px;">
+                    <a href="#acknowledgements" style="font-weight:600;color:#58a6ff;">Acknowledgements</a>
+                </li>
+            </ul>
+        </aside>
+
+        <main class="content">
+
+            <!-- ==================== OBJECTIVE ==================== -->
+            <h2 id="objective">Objective</h2>
+
+            <p>In this lab, I built a closed-loop controller to balance the robot on two wheels in an inverted pendulum configuration. The controller reads pitch angle from the IMU gyroscope and drives the motors forward or backward to keep the robot upright. I collaborated with Clarence Chee and Rushika Prasad on this lab. I designed the initial code architecture and provided the robot, Rushika handled the Jupyter notebook integration for remote gain tuning and data logging, and Clarence performed the physical testing with my assistance.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== APPROACH ==================== -->
+            <h2 id="approach">Approach</h2>
+
+            <p>We chose to start the robot in the upright position and stabilize it with a PD controller, rather than attempting to drive forward and flip into a wheelie. This allowed us to isolate the balance controller without also needing to time the flip. One person holds the robot upright while another runs the <code>BALANCE</code> command from the Jupyter notebook, which provides a three-second countdown. At the moment the command arrives, the firmware zeroes the integrated pitch so the current orientation becomes the 0&deg; setpoint.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== CONTROLLER ==================== -->
+            <h2 id="controller">Controller Design</h2>
+
+            <h3 id="pitch-pid">Pitch PD</h3>
+
+            <p>The balance controller is implemented in <code>runPitchPID()</code> in <code>pid.cpp</code> and runs when <code>pid_mode == 2</code>. Each iteration reads the IMU, integrates <code>gyrY()</code> to obtain the current pitch angle, and computes a motor command from the error relative to the 0&deg; setpoint.</p>
+
+            <pre><code class="language-cpp">// Integrate gyro for pitch
+unsigned long now_us = micros();
+float dt = (now_us - prev_orient_time_us) / 1000000.0;
+if (dt > 0 && dt < 0.1) {
+    pitch_g += myICM.gyrY() * dt;
+}
+
+float error = pid_setpoint - pitch_g;
+
+// P term
+float p_term = kp * error;
+
+// I term with anti-windup
+i_term += error * ki * dt;
+i_term = constrain(i_term, -300, 300);
+
+// D term: use raw gyrY() directly (pitch angular rate)
+float gyro_rate = myICM.gyrY();
+float d_term = kd * (-gyro_rate);
+if (abs(d_term) < 1.0) d_term = 0;  // LPF threshold
+
+float raw_output = p_term + i_term + d_term;
+int motor_cmd = constrain((int)raw_output, -255, 255);
+
+// Brake if fallen or at target
+if ((abs(error) <= 2.5) || (abs(error) >= 87.5)) {
+    brakeMotors();
+}</code></pre>
+
+            <p>The P term provides a restoring force proportional to the tilt angle. The D term uses the raw gyro angular rate directly rather than numerically differentiating the error, which avoids amplifying high-frequency noise. A small LPF threshold zeros out tiny D values to reduce motor chatter. A deadband prevents the motors from buzzing at very small error values, and a brake zone is active within 2.5&deg; of the setpoint. The controller also brakes if the error exceeds 87.5&deg;, indicating a fall. No integral term was used, as the balance point does not drift on a flat surface.</p>
+
+            <h3 id="dynamics">Inverted Pendulum Dynamics</h3>
+
+            <p>An inverted pendulum is inherently unstable. When the robot tilts by angle &theta; from vertical, gravity exerts a torque proportional to sin(&theta;) pulling it further away. For small angles sin(&theta;) &asymp; &theta;, giving the linearized equation of motion:</p>
+
+            <div class="formula-block">
+                &theta;&uml; = (g / L) &middot; &theta; &minus; (1 / L) &middot; u
+                <br>
+                <span class="comment">g = gravitational acceleration, L = pendulum length (axle to CoM), u = wheel correction</span>
+            </div>
+
+            <p>The PD controller computes u = Kp&middot;e + Kd&middot;(de/dt). The P term acts as a restoring spring; the D term acts as a damper that prevents overshoot. Together they approximate a stable second-order system around the upright equilibrium.</p>
+
+            <div class="insight">
+                <strong>Key observation:</strong> The small-angle approximation breaks down beyond ~10&deg;. Past that threshold, the actual gravitational torque grows faster than the linear model predicts, so the controller underestimates the required correction. This matched our experimental results.
+            </div>
+
+            <h3 id="gain-tuning">Gain Tuning</h3>
+
+            <p>Gains were sent over BLE using <code>SET_PID_GAINS</code>, allowing tuning without reflashing. Over 20+ runs we adjusted values until the robot could balance. With low Kp the robot fell immediately on the first tilt with no oscillation. Kp was increased until it could push back, then Kd was added to damp the response.</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr><th>Surface</th><th>Kp</th><th>Ki</th><th>Kd</th><th>Notes</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Carpet</td><td class="good">3</td><td>0</td><td class="good">2</td><td>Extra friction helps wheels grip</td></tr>
+                    <tr><td>Hardwood</td><td class="warn">8</td><td>0</td><td class="warn">3</td><td>Wheels slip more, needs stronger correction</td></tr>
+                </tbody>
+            </table>
+
+            <hr class="section-rule">
+
+            <!-- ==================== JUPYTER ==================== -->
+            <h2 id="jupyter">Jupyter Integration</h2>
+
+            <p>The notebook <code>balance_run.ipynb</code> handles the full workflow over BLE: set gains with <code>SET_PID_GAINS</code>, start the run with <code>BALANCE</code> after a 3-second countdown, wait for the firmware timeout (10 s, set by <code>pid_duration</code>), then pull logged data with <code>GET_PID_LOG</code>. Each log line contains a timestamp, pitch angle, and motor command. The notebook parses these into a DataFrame and generates plots.</p>
+
+            <pre><code class="language-python"># Set gains remotely
+KP, KI, KD = 3, 0, 2
+ble.send_command(CMD.SET_PID_GAINS, f"{KP}|{KI}|{KD}")
+
+# Countdown then start
+for i in range(3, 0, -1):
+    print(f"Starting balance in {i} ...")
+    time.sleep(1.0)
+ble.send_command(CMD.BALANCE, "0")</code></pre>
+
+            <p>One firmware fix was required: <code>GET_PID_LOG</code> in <code>commands.cpp</code> was sending <code>pid_yaw_array</code> for all non-position modes, but the balance controller writes to <code>pid_pitch_array</code>. A conditional check for <code>pid_mode == 2</code> was added so the correct data array is transmitted.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== DEBUGGING ==================== -->
+            <h2 id="debugging">Debugging</h2>
+
+            <p>Several early attempts failed because the D term was reading <code>gyrZ()</code> instead of <code>gyrY()</code> for the derivative. The derivative was responding to the wrong rotational axis entirely. Once the axis was corrected, the damping behavior worked as expected.</p>
+
+            <p>BLE integration required effort since each team member had a different coding style. My robot also had a recurring issue where it would disconnect immediately after the balance command was sent. After troubleshooting the connection flow, this was resolved.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== RESULTS ==================== -->
+            <h2 id="results">Results</h2>
+
+            <!-- TODO: Replace with your video file -->
+            <video controls style="max-width:100%;border-radius:8px;margin:24px 0;border:1px solid #30363d;">
+                <source src="videos/TODO_VIDEO_FILE" type="video/mp4">
+            </video>
+
+            <p>The best run achieved approximately 7 seconds of balancing. The robot remained upright with visible twitching as the controller made small corrections. Within about 10&deg; of the setpoint, corrections were quick and consistent. Beyond that range, recovery became unreliable, and the robot eventually tipped too far to the left and fell. The leftward bias was consistent across runs, suggesting a mechanical asymmetry or accumulated gyro bias.</p>
+
+            <img src="images/L12_balance_plot.png" alt="Pitch angle and motor command" class="img-full">
+            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">Top: pitch angle from integrated gyro. Bottom: motor PWM command. Gains: Kp=3, Ki=0, Kd=2.</p>
+
+            <img src="images/L12_error_plot.png" alt="Tracking error" class="img-full">
+            <p style="text-align:center;color:#8b949e;font-size:0.85rem;">Tracking error relative to the 0&deg; setpoint over the duration of the run.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== DISCUSSION ==================== -->
+            <h2 id="discussion">Discussion</h2>
+
+            <p>The controller demonstrated short-duration balancing. The primary limitation is gyro drift from integrating angular rate to obtain pitch. Any sensor bias accumulates over time and shifts the effective setpoint. A complementary filter combining gyro and accelerometer data would mitigate this but was not implemented.</p>
+
+            <p>The consistent leftward fall could be addressed by applying a small offset to the setpoint to compensate for the asymmetry. This was attempted briefly but there were not enough runs to calibrate the offset.</p>
+
+            <hr class="section-rule">
+
+            <!-- ==================== ACKNOWLEDGEMENTS ==================== -->
+            <h2 id="acknowledgements">Acknowledgements</h2>
+            <p>
+                Clarence Chee performed physical testing with my assistance.
+                Rushika Prasad built the Jupyter notebook integration for remote gain tuning and data logging.
+                I designed the code architecture and provided the robot.
+                Claude AI was used for assistance with debugging and structuring this report.
+            </p>
+
+        </main>
+    </div>
+
+    <script src="../scripts/lab-scripts.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>
